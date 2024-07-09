@@ -41,6 +41,10 @@ const Dashboard = () => {
     setCharacter(newCharacter);
   };
 
+  const handleCharacterUpdate = (updatedCharacter) => {
+    setCharacter(updatedCharacter);
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
@@ -51,7 +55,7 @@ const Dashboard = () => {
       <p>Welcome, {user.username}!</p>
       <p>Email: {user.email}</p>
       {character ? (
-        <CharacterInfo character={character} />
+        <CharacterInfo character={character} onCharacterUpdate={handleCharacterUpdate} />
       ) : (
         <CreateCharacter onCharacterCreated={handleCharacterCreated} />
       )}

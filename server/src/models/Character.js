@@ -38,7 +38,11 @@ const characterSchema = new mongoose.Schema({
   intelligence: {
     type: Number,
     default: 10
+  },
+  availablePoints: {
+    type: Number,
+    default: 5
   }
 }, { timestamps: true });
 
-module.exports = mongoose.model('Character', characterSchema); 
+module.exports = mongoose.model('Character', characterSchema);
