@@ -1,6 +1,7 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const dotenv = require('dotenv');
+const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
 
 dotenv.config({ path: '.env' });
@@ -10,9 +11,7 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
-
-// Проверка чтения переменной окружения
-console.log('MONGO_URI:', process.env.MONGO_URI);
+app.use(cors()); // Добавьте эту строку
 
 // Connect to MongoDB
 mongoose.connect(process.env.MONGO_URI)
