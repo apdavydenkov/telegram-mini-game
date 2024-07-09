@@ -3,6 +3,7 @@ const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
 const authRoutes = require('./routes/authRoutes');
+const characterRoutes = require('./routes/characterRoutes');
 
 dotenv.config({ path: '.env' });
 
@@ -20,6 +21,7 @@ mongoose.connect(process.env.MONGO_URI)
 
 // Routes
 app.use('/api/auth', authRoutes);
+app.use('/api/character', characterRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

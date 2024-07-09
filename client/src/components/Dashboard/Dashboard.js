@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import styled from 'styled-components';
+import CreateCharacter from '../Character/CreateCharacter';
+import CharacterInfo from '../Character/CharacterInfo';
 
 const DashboardContainer = styled.div`
   max-width: 800px;
@@ -10,18 +12,24 @@ const DashboardContainer = styled.div`
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
+  const [character, setCharacter] = useState(null);
 
   useEffect(() => {
     const fetchUserData = async () => {
       const token = localStorage.getItem('token');
       if (token) {
         try {
-          const response = await axios.get('http://localhost:5000/api/auth/me', {
+          const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
             headers: { Authorization: `Bearer ${token}` }
           });
-          setUser(response.data);
+          setUser(userResponse.data);
+
+          const characterResponse = await axios.get('http://localhost:5000/api/character', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          setCharacter(characterResponse.data);
         } catch (error) {
-          console.error('Error fetching user data:', error);
+          console.error('Error fetching data:', error);
         }
       }
     };
@@ -29,16 +37,24 @@ const Dashboard = () => {
     fetchUserData();
   }, []);
 
+  const handleCharacterCreated = (newCharacter) => {
+    setCharacter(newCharacter);
+  };
+
   if (!user) {
     return <div>Loading...</div>;
   }
 
   return (
     <DashboardContainer>
-      <h1>Личный кабинет</h1>
-      <p>Добро пожаловать, {user.username}!</p>
+      <h1>Dashboard</h1>
+      <p>Welcome, {user.username}!</p>
       <p>Email: {user.email}</p>
-      {/* Здесь можно добавить дополнительную информацию о персонаже */}
+      {character ? (
+        <CharacterInfo character={character} />
+      ) : (
+        <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+      )}
     </DashboardContainer>
   );
 };
