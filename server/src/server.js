@@ -1,9 +1,10 @@
 const express = require('express');
-const mongoose = require('mongoose');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const characterRoutes = require('./routes/characterRoutes');
+const itemRoutes = require('./routes/itemRoutes');
 
 dotenv.config({ path: '.env' });
 
@@ -12,16 +13,15 @@ const PORT = process.env.PORT || 5000;
 
 // Middleware
 app.use(express.json());
-app.use(cors()); // Добавьте эту строку
+app.use(cors());
 
 // Connect to MongoDB
-mongoose.connect(process.env.MONGO_URI)
-  .then(() => console.log('Connected to MongoDB'))
-  .catch((err) => console.error('Could not connect to MongoDB', err));
+connectDB();
 
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
+app.use('/api/items', itemRoutes);
 
 app.get('/', (req, res) => {
   res.send('API is running...');

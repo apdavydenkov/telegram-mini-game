@@ -1,4 +1,5 @@
 const Character = require('../models/Character');
+const Item = require('../models/Item');
 
 exports.createCharacter = async (req, res) => {
   try {
@@ -66,5 +67,75 @@ exports.updateCharacter = async (req, res) => {
     res.json(character);
   } catch (error) {
     res.status(400).json({ message: 'Error updating character', error: error.message });
+  }
+};
+
+exports.addItemToInventory = async (req, res) => {
+  try {
+	const { itemId } = req.body;
+	const character = await Character.findOne({ user: req.user._id });
+	if (!character) {
+	  return res.status(404).json({ message: 'Character not found' });
+	}
+	
+	const item = await Item.findById(itemId);
+	if (!item) {
+	  return res.status(404).json({ message: 'Item not found' });
+	}
+
+	const inventoryItem = character.inventory.find(i => i.item.toString() === itemId);
+	if (inventoryItem) {
+	  inventoryItem.quantity += 1;
+	} else {
+	  character.inventory.push({ item: itemId, quantity: 1 });
+	}
+
+	await character.save();
+	res.json(character);
+  } catch (error) {
+	res.status(400).json({ message: 'Error adding item to inventory', error: error.message });
+  }
+};
+
+exports.equipItem = async (req, res) => {
+  try {
+	const { itemId, slot } = req.body;
+	const character = await Character.findOne({ user: req.user._id });
+	if (!character) {
+	  return res.status(404).json({ message: 'Character not found' });
+	}
+
+	const item = await Item.findById(itemId);
+	if (!item) {
+	  return res.status(404).json({ message: 'Item not found' });
+	}
+
+	if (item.slot !== slot) {
+	  return res.status(400).json({ message: 'Item cannot be equipped in this slot' });
+	}
+
+	// Unequip current item if exists
+	if (character.equipment[slot]) {
+	  character.inventory.push({ item: character.equipment[slot], quantity: 1 });
+	}
+
+	// Remove item from inventory and equip it
+	const inventoryIndex = character.inventory.findIndex(i => i.item.toString() === itemId);
+	if (inventoryIndex === -1) {
+	  return res.status(400).json({ message: 'Item not in inventory' });
+	}
+
+	if (character.inventory[inventoryIndex].quantity > 1) {
+	  character.inventory[inventoryIndex].quantity -= 1;
+	} else {
+	  character.inventory.splice(inventoryIndex, 1);
+	}
+
+	character.equipment[slot] = itemId;
+
+	await character.save();
+	res.json(character);
+  } catch (error) {
+	res.status(400).json({ message: 'Error equipping item', error: error.message });
   }
 };

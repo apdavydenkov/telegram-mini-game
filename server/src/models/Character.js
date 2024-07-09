@@ -42,6 +42,17 @@ const characterSchema = new mongoose.Schema({
   availablePoints: {
     type: Number,
     default: 5
+  },
+  inventory: [{
+    item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    quantity: { type: Number, default: 1 }
+  }],
+  equipment: {
+    hand: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    body: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    head: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    feet: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' }
   }
 }, { timestamps: true });
 
