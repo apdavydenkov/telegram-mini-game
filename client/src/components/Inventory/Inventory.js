@@ -1,64 +1,29 @@
 import React, { useState } from 'react';
-import styled from 'styled-components';
 
-const InventoryContainer = styled.div`
-  padding: 20px;
-  background-color: #e0e0e0;
-  border-radius: 10px;
-`;
+const CategoryTab = ({ id, name, active, onClick }) => (
+  <button
+    className={`px-4 py-2 font-bold transition-colors duration-200 
+      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+      first:rounded-tl-lg last:rounded-tr-lg`}
+    onClick={() => onClick(id)}
+  >
+    {name}
+  </button>
+);
 
-const CategoryTabs = styled.div`
-  display: flex;
-  margin-bottom: 20px;
-`;
-
-const CategoryTab = styled.button`
-  padding: 10px 20px;
-  background-color: ${props => props.active ? '#4CAF50' : '#ddd'};
-  border: none;
-  border-radius: 5px 5px 0 0;
-  cursor: pointer;
-  margin-right: 5px;
-`;
-
-const ItemGrid = styled.div`
-  display: grid;
-  grid-template-columns: repeat(5, 1fr);
-  gap: 10px;
-  background-color: rgba(0, 0, 0, 0.1);
-  padding: 10px;
-  border-radius: 5px;
-`;
-
-const ItemSlot = styled.div`
-  width: 60px;
-  height: 60px;
-  background-color: #f0f0f0;
-  border: 2px solid #bdc3c7;
-  border-radius: 5px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  align-items: center;
-  font-size: 12px;
-  text-align: center;
-  cursor: pointer;
-  transition: background-color 0.3s;
-
-  &:hover {
-    background-color: #d0d0d0;
-  }
-`;
-
-const ItemName = styled.div`
-  font-weight: bold;
-  margin-bottom: 5px;
-`;
-
-const ItemQuantity = styled.div`
-  font-size: 10px;
-  color: #7f8c8d;
-`;
+const ItemSlot = ({ item, onEquipItem }) => (
+  <div
+    className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100"
+    onClick={() => item && onEquipItem(item.id, item.slot)}
+  >
+    {item && (
+      <>
+        <div className="font-bold mb-1 text-gray-800 truncate w-full">{item.name}</div>
+        <div className="text-gray-600">x{item.quantity}</div>
+      </>
+    )}
+  </div>
+);
 
 const Inventory = ({ inventory, onEquipItem }) => {
   const [activeCategory, setActiveCategory] = useState('all');
@@ -76,30 +41,27 @@ const Inventory = ({ inventory, onEquipItem }) => {
   );
 
   return (
-    <InventoryContainer>
-      <CategoryTabs>
+    <div>
+      <div className="flex mt-4">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
+            id={category.id}
+            name={category.name}
             active={activeCategory === category.id}
-            onClick={() => setActiveCategory(category.id)}
-          >
-            {category.name}
-          </CategoryTab>
+            onClick={setActiveCategory}
+          />
         ))}
-      </CategoryTabs>
-      <ItemGrid>
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-7 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredInventory.map((item, index) => (
-          <ItemSlot key={index} onClick={() => onEquipItem(item.id, item.slot)}>
-            <ItemName>{item.name}</ItemName>
-            <ItemQuantity>x{item.quantity}</ItemQuantity>
-          </ItemSlot>
+          <ItemSlot key={index} item={item} onEquipItem={onEquipItem} />
         ))}
-        {[...Array(25 - filteredInventory.length)].map((_, index) => (
+        {[...Array(24 - filteredInventory.length)].map((_, index) => (
           <ItemSlot key={`empty-${index}`} />
         ))}
-      </ItemGrid>
-    </InventoryContainer>
+      </div>
+    </div>
   );
 };
 

@@ -1,47 +1,5 @@
 import React from 'react';
-import styled from 'styled-components';
 import { FaDumbbell, FaRunning, FaBrain, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat } from 'react-icons/fa';
-
-const CharacterContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 10px;
-  background-color: #e0e0e0;
-  border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
-`;
-
-const StatsContainer = styled.div`
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 10px;
-  width: 100%;
-`;
-
-const StatColumn = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
-
-const StatTitle = styled.h3`
-  margin-bottom: 10px;
-  text-align: center;
-`;
-
-const Stat = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 5px 10px;
-  background-color: #f0f0f0;
-  border-radius: 5px;
-  margin-bottom: 5px;
-`;
-
-const StatIcon = styled.span`
-  margin-right: 5px;
-`;
 
 const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
   const calculateDamage = () => character.strength * 10;
@@ -50,51 +8,33 @@ const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
   const calculateDodge = () => (character.dexterity * 3) + (character.intelligence * 3);
   const calculateHealthRegen = () => 1 + (character.intelligence * 0.05);
 
+	const StatItem = ({ icon: Icon, label, value }) => (
+	  <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
+		<span className="flex items-center text-gray-700">
+		  <Icon className="mr-2 text-blue-500" />
+		  {label}:
+		</span>
+		<span className="font-semibold text-blue-600">{value}</span>
+	  </div>
+	);
+
   return (
-    <CharacterContainer>
-      {showDetailedStats && (
-        <StatsContainer>
-          <StatColumn>
-            <StatTitle>Базовые параметры</StatTitle>
-            <Stat>
-              <span><StatIcon><FaDumbbell /></StatIcon> Сила:</span>
-              <span>{character.strength}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaRunning /></StatIcon> Ловкость:</span>
-              <span>{character.dexterity}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaBrain /></StatIcon> Интеллект:</span>
-              <span>{character.intelligence}</span>
-            </Stat>
-          </StatColumn>
-          <StatColumn>
-            <StatTitle>Боевые характеристики</StatTitle>
-            <Stat>
-              <span><StatIcon><FaFistRaised /></StatIcon> Урон:</span>
-              <span>{calculateDamage()}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaShieldAlt /></StatIcon> Броня:</span>
-              <span>{calculateArmor()}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaBullseye /></StatIcon> Крит:</span>
-              <span>{calculateCrit()}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaWind /></StatIcon> Уворот:</span>
-              <span>{calculateDodge()}</span>
-            </Stat>
-            <Stat>
-              <span><StatIcon><FaHeartbeat /></StatIcon> Восстановление:</span>
-              <span>{calculateHealthRegen().toFixed(2)}/сек</span>
-            </Stat>
-          </StatColumn>
-        </StatsContainer>
-      )}
-    </CharacterContainer>
+    <div className="grid grid-cols-2 gap-4">
+      <div>
+        <h3 className="text-lg font-bold mb-3 text-gray-800">Навыки</h3>
+        <StatItem icon={FaDumbbell} label="Сила" value={character.strength} />
+        <StatItem icon={FaRunning} label="Ловкость" value={character.dexterity} />
+        <StatItem icon={FaBrain} label="Интеллект" value={character.intelligence} />
+      </div>
+      <div>
+        <h3 className="text-lg font-bold mb-3 text-gray-800">Характеристики</h3>
+        <StatItem icon={FaFistRaised} label="Урон" value={calculateDamage()} />
+        <StatItem icon={FaShieldAlt} label="Броня" value={calculateArmor()} />
+        <StatItem icon={FaBullseye} label="Крит" value={calculateCrit()} />
+        <StatItem icon={FaWind} label="Уворот" value={calculateDodge()} />
+        <StatItem icon={FaHeartbeat} label="Реген" value={`${calculateHealthRegen().toFixed(2)}/сек`} />
+      </div>
+    </div>
   );
 };
 

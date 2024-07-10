@@ -1,44 +1,26 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
-import styled from 'styled-components';
+import Character from '../Character/Character';
 import CharacterInfo from '../Character/CharacterStats';
 import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
-import Character from '../Character/Character';
 
-const DashboardContainer = styled.div`
-  max-width: 500px;
-  margin: 0 auto;
-  padding: 20px;
-  background-color: #f0f0f0;
-  border: 2px solid #333;
-  border-radius: 10px;
-`;
+const Tab = ({ label, active, onClick }) => (
+  <button
+    className={`px-4 py-2 font-bold transition-colors duration-200 
+      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+      first:rounded-tl-lg last:rounded-tr-lg`}
+    onClick={onClick}
+  >
+    {label}
+  </button>
+);
 
-const TabContainer = styled.div`
-  display: flex;
-  justify-content: space-around;
-  margin-bottom: 20px;
-`;
-
-const Tab = styled.button`
-  padding: 10px 20px;
-  background-color: ${props => props.$active ? '#4CAF50' : '#ddd'};
-  border: none;
-  border-radius: 5px;
-  cursor: pointer;
-  font-weight: bold;
-  transition: background-color 0.3s;
-
-  &:hover {
-    background-color: ${props => props.$active ? '#45a049' : '#ccc'};
-  }
-`;
-
-const ContentContainer = styled.div`
-  display: flex;
-  flex-direction: column;
-`;
+const TabContent = ({ children }) => (
+  <div className="bg-gray-100 rounded-b-lg rounded-tr-lg p-4">
+    {children}
+  </div>
+);
 
 const Dashboard = () => {
   const [user, setUser] = useState(null);
@@ -57,7 +39,6 @@ const Dashboard = () => {
           headers: { Authorization: `Bearer ${token}` }
         });
         setUser(userResponse.data);
-
         const characterResponse = await axios.get('http://localhost:5000/api/character', {
           headers: { Authorization: `Bearer ${token}` }
         });
@@ -86,25 +67,25 @@ const Dashboard = () => {
   };
 
   if (!user || !character) {
-    return <div>Loading...</div>;
+    return <div className="text-center p-4">Loading...</div>;
   }
 
   return (
-    <DashboardContainer>
+    <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
       <Character character={character} />
       
-      <TabContainer>
-        <Tab $active={activeTab === 'characteristics'} onClick={() => setActiveTab('characteristics')}>Характеристики</Tab>
-        <Tab $active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')}>Инвентарь</Tab>
-        <Tab $active={activeTab === 'skills'} onClick={() => setActiveTab('skills')}>Навыки</Tab>
-      </TabContainer>
+      <div className="flex mt-4">
+        <Tab label="Характеристики" active={activeTab === 'characteristics'} onClick={() => setActiveTab('characteristics')} />
+        <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+        <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
+      </div>
 
-      <ContentContainer>
+      <TabContent>
         {activeTab === 'characteristics' && <CharacterInfo character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
         {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
         {activeTab === 'skills' && <Skills skills={character.skills || []} />}
-      </ContentContainer>
-    </DashboardContainer>
+      </TabContent>
+    </div>
   );
 };
 
