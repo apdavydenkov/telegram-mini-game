@@ -55,6 +55,10 @@ const characterSchema = new mongoose.Schema({
     type: Number,
     default: 5
   },
+  finalDistribution: {
+    type: Boolean,
+    default: false
+  },
   inventory: [{
     item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
     quantity: { type: Number, default: 1 }
@@ -65,7 +69,16 @@ const characterSchema = new mongoose.Schema({
     head: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
     feet: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
     accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' }
+  },
+  version: {
+    type: Number,
+    default: 0
   }
 }, { timestamps: true });
+
+characterSchema.pre('save', function(next) {
+  this.version += 1;
+  next();
+});
 
 module.exports = mongoose.model('Character', characterSchema);

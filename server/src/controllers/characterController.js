@@ -57,21 +57,27 @@ exports.getCharacter = async (req, res) => {
 
 exports.updateCharacter = async (req, res) => {
   try {
-    const { strength, dexterity, intelligence, endurance, charisma, availablePoints } = req.body;
+    const { strength, dexterity, intelligence, endurance, charisma, availablePoints, version } = req.body;
     
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const totalPointsUsed = (strength - character.strength) +
-                            (dexterity - character.dexterity) +
-                            (intelligence - character.intelligence) +
-                            (endurance - character.endurance) +
-                            (charisma - character.charisma);
+    if (character.version !== version) {
+      return res.status(409).json({ message: 'Конфликт версий. Обновите данные и попробуйте снова.' });
+    }
 
-    if (totalPointsUsed > character.availablePoints) {
-      return res.status(400).json({ message: 'Неверное распределение характеристик' });
+    if (character.finalDistribution) {
+      return res.status(400).json({ message: 'Распределение очков уже завершено' });
+    }
+
+    const newTotalStats = strength + dexterity + intelligence + endurance + charisma;
+    const oldTotalStats = character.strength + character.dexterity + character.intelligence + character.endurance + character.charisma;
+    const maxAllowedIncrease = character.availablePoints;
+
+    if (newTotalStats < oldTotalStats || newTotalStats > oldTotalStats + maxAllowedIncrease) {
+      return res.status(400).json({ message: 'Недопустимое распределение очков' });
     }
 
     character.strength = strength;
@@ -80,6 +86,10 @@ exports.updateCharacter = async (req, res) => {
     character.endurance = endurance;
     character.charisma = charisma;
     character.availablePoints = availablePoints;
+
+    if (availablePoints === 0) {
+      character.finalDistribution = true;
+    }
 
     await character.save();
     res.json(character);
