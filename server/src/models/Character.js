@@ -27,6 +27,10 @@ const characterSchema = new mongoose.Schema({
     type: Number,
     default: 100
   },
+  maxHealth: {
+    type: Number,
+    default: 100
+  },
   strength: {
     type: Number,
     default: 10
@@ -36,6 +40,14 @@ const characterSchema = new mongoose.Schema({
     default: 10
   },
   intelligence: {
+    type: Number,
+    default: 10
+  },
+  endurance: {
+    type: Number,
+    default: 10
+  },
+  charisma: {
     type: Number,
     default: 10
   },

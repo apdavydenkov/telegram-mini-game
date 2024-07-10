@@ -1,65 +1,5 @@
 import React, { useState } from 'react';
 import axios from 'axios';
-import styled from 'styled-components';
-
-const CreateCharacterContainer = styled.div`
-  max-width: 400px;
-  margin: 0 auto;
-  padding: 20px;
-  border: 1px solid #ddd;
-  border-radius: 5px;
-  background-color: #f9f9f9;
-`;
-
-const Input = styled.input`
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-`;
-
-const Select = styled.select`
-  width: 100%;
-  padding: 10px;
-  margin: 10px 0;
-  border: 1px solid #ddd;
-  border-radius: 3px;
-`;
-
-const Button = styled.button`
-  width: 100%;
-  padding: 10px;
-  background-color: #4CAF50;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-
-  &:hover {
-    background-color: #45a049;
-  }
-`;
-
-const StatContainer = styled.div`
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 10px 0;
-`;
-
-const StatButton = styled.button`
-  padding: 5px 10px;
-  background-color: #007bff;
-  color: white;
-  border: none;
-  border-radius: 3px;
-  cursor: pointer;
-
-  &:disabled {
-    background-color: #cccccc;
-  }
-`;
 
 const CreateCharacter = ({ onCharacterCreated }) => {
   const [name, setName] = useState('');
@@ -67,6 +7,8 @@ const CreateCharacter = ({ onCharacterCreated }) => {
   const [strength, setStrength] = useState(10);
   const [dexterity, setDexterity] = useState(10);
   const [intelligence, setIntelligence] = useState(10);
+  const [endurance, setEndurance] = useState(10);
+  const [charisma, setCharisma] = useState(10);
   const [availablePoints, setAvailablePoints] = useState(5);
 
   const handleStatChange = (stat, value) => {
@@ -81,6 +23,12 @@ const CreateCharacter = ({ onCharacterCreated }) => {
         case 'intelligence':
           setIntelligence(prev => Math.max(10, prev + value));
           break;
+        case 'endurance':
+          setEndurance(prev => Math.max(10, prev + value));
+          break;
+        case 'charisma':
+          setCharisma(prev => Math.max(10, prev + value));
+          break;
         default:
           break;
       }
@@ -93,7 +41,7 @@ const CreateCharacter = ({ onCharacterCreated }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post('http://localhost:5000/api/character', 
-        { name, class: characterClass, strength, dexterity, intelligence },
+        { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       onCharacterCreated(response.data);
@@ -103,49 +51,39 @@ const CreateCharacter = ({ onCharacterCreated }) => {
   };
 
   return (
-    <CreateCharacterContainer>
-      <h2>Create Character</h2>
+    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4">Create Character</h2>
       <form onSubmit={handleSubmit}>
-        <Input
+        <input
           type="text"
           placeholder="Character Name"
           value={name}
           onChange={(e) => setName(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
           required
         />
-        <Select
+        <select
           value={characterClass}
           onChange={(e) => setCharacterClass(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
         >
           <option value="Warrior">Warrior</option>
           <option value="Mage">Mage</option>
           <option value="Archer">Archer</option>
-        </Select>
-        <p>Available points: {availablePoints}</p>
-        <StatContainer>
-          <span>Strength: {strength}</span>
-          <div>
-            <StatButton type="button" onClick={() => handleStatChange('strength', -1)} disabled={strength <= 10}>-</StatButton>
-            <StatButton type="button" onClick={() => handleStatChange('strength', 1)} disabled={availablePoints <= 0}>+</StatButton>
+        </select>
+        <p className="mb-2">Available points: {availablePoints}</p>
+        {['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].map((stat) => (
+          <div key={stat} className="flex justify-between items-center mb-2">
+            <span className="capitalize">{stat}: {eval(stat)}</span>
+            <div>
+              <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
+              <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>
+            </div>
           </div>
-        </StatContainer>
-        <StatContainer>
-          <span>Dexterity: {dexterity}</span>
-          <div>
-            <StatButton type="button" onClick={() => handleStatChange('dexterity', -1)} disabled={dexterity <= 10}>-</StatButton>
-            <StatButton type="button" onClick={() => handleStatChange('dexterity', 1)} disabled={availablePoints <= 0}>+</StatButton>
-          </div>
-        </StatContainer>
-        <StatContainer>
-          <span>Intelligence: {intelligence}</span>
-          <div>
-            <StatButton type="button" onClick={() => handleStatChange('intelligence', -1)} disabled={intelligence <= 10}>-</StatButton>
-            <StatButton type="button" onClick={() => handleStatChange('intelligence', 1)} disabled={availablePoints <= 0}>+</StatButton>
-          </div>
-        </StatContainer>
-        <Button type="submit">Create Character</Button>
+        ))}
+        <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600">Create Character</button>
       </form>
-    </CreateCharacterContainer>
+    </div>
   );
 };
 

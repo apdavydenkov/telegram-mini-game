@@ -4,6 +4,7 @@ import Character from '../Character/Character';
 import CharacterInfo from '../Character/CharacterStats';
 import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
+import CreateCharacter from '../Character/CreateCharacter';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -26,6 +27,7 @@ const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [character, setCharacter] = useState(null);
   const [activeTab, setActiveTab] = useState('characteristics');
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     fetchUserData();
@@ -35,17 +37,29 @@ const Dashboard = () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
+        console.log('Получение данных пользователя...');
         const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
           headers: { Authorization: `Bearer ${token}` }
         });
+        console.log('Данные пользователя получены:', userResponse.data);
         setUser(userResponse.data);
-        const characterResponse = await axios.get('http://localhost:5000/api/character', {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setCharacter(characterResponse.data);
+
+        if (userResponse.data.hasCharacter) {
+          console.log('Получение данных персонажа...');
+          const characterResponse = await axios.get('http://localhost:5000/api/character', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          console.log('Данные персонажа получены:', characterResponse.data);
+          setCharacter(characterResponse.data);
+        }
       } catch (error) {
-        console.error('Error fetching data:', error);
+        console.error('Ошибка получения данных:', error.response?.data || error.message);
+      } finally {
+        setLoading(false);
       }
+    } else {
+      console.error('Токен не найден в localStorage');
+      setLoading(false);
     }
   };
 
@@ -62,12 +76,33 @@ const Dashboard = () => {
       );
       setCharacter(response.data);
     } catch (error) {
-      console.error('Error equipping item:', error);
+      console.error('Ошибка экипировки предмета:', error);
     }
   };
 
-  if (!user || !character) {
-    return <div className="text-center p-4">Loading...</div>;
+  const handleCharacterCreated = async (newCharacter) => {
+    setCharacter(newCharacter);
+    // Обновляем данные пользователя, чтобы отразить создание персонажа
+    const updatedUser = { ...user, hasCharacter: true };
+    setUser(updatedUser);
+    // Здесь можно также отправить запрос на сервер для обновления данных пользователя
+  };
+
+  if (loading) {
+    return <div className="text-center p-4">Загрузка...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-center p-4">Необходима авторизация</div>;
+  }
+
+  if (!character) {
+    return (
+      <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
+        <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+      </div>
+    );
   }
 
   return (
@@ -79,7 +114,6 @@ const Dashboard = () => {
         <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
         <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
       </div>
-
       <TabContent>
         {activeTab === 'characteristics' && <CharacterInfo character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
         {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}

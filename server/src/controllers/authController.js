@@ -6,30 +6,45 @@ exports.register = async (req, res) => {
   try {
     const { username, email, password } = req.body;
     
-    // Check if user already exists
+    // Проверяем, существует ли уже пользователь с таким именем или email
     const existingUser = await User.findOne({ $or: [{ username }, { email }] });
     if (existingUser) {
-      return res.status(400).json({ message: 'User already exists' });
+      console.log('Регистрация не удалась: Пользователь уже существует');
+      return res.status(400).json({ message: 'Пользователь уже существует' });
     }
     
-    // Hash password
+    // Хешируем пароль
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password, salt);
     
-    // Create new user
+    // Создаем нового пользователя
     const newUser = new User({
       username,
       email,
       password: hashedPassword,
-      // telegramId будет установлен в null по умолчанию
+      hasCharacter: false
     });
     
     await newUser.save();
+    console.log('Создан новый пользователь:', newUser._id);
     
-    res.status(201).json({ message: 'User registered successfully' });
+    // Генерируем токен
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Токен сгенерирован для нового пользователя');
+    
+    res.status(201).json({ 
+      message: 'Пользователь успешно зарегистрирован', 
+      token,
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        hasCharacter: newUser.hasCharacter
+      }
+    });
   } catch (error) {
-    console.error('Registration error:', error);
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Ошибка регистрации:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
   }
 };
 
@@ -37,23 +52,50 @@ exports.login = async (req, res) => {
   try {
     const { username, password } = req.body;
     
-    // Check if user exists
+    // Ищем пользователя
     const user = await User.findOne({ username });
     if (!user) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      console.log('Вход не удался: Пользователь не найден');
+      return res.status(400).json({ message: 'Неверные учетные данные' });
     }
     
-    // Check password
+    // Проверяем пароль
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) {
-      return res.status(400).json({ message: 'Invalid credentials' });
+      console.log('Вход не удался: Неверный пароль');
+      return res.status(400).json({ message: 'Неверные учетные данные' });
     }
     
-    // Create and assign token
+    // Генерируем токен
     const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Вход успешен, токен сгенерирован');
     
-    res.json({ token });
+    res.json({ 
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        hasCharacter: user.hasCharacter
+      }
+    });
   } catch (error) {
-    res.status(500).json({ message: 'Server error', error: error.message });
+    console.error('Ошибка входа:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
   }
-}; 
+};
+
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      hasCharacter: user.hasCharacter
+    });
+  } catch (error) {
+    console.error('Ошибка при получении данных пользователя:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+  }
+};

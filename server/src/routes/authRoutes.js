@@ -11,6 +11,7 @@ router.post('/login', login);
 
 // Protected route
 router.get('/me', authMiddleware, (req, res) => {
+  console.log('User data requested for:', req.user._id);
   res.json(req.user);
 });
 

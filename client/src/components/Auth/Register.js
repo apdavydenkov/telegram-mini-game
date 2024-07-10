@@ -33,59 +33,70 @@ const Button = styled.button`
   }
 `;
 
-	const Register = () => {
-	  const [username, setUsername] = useState('');
-	  const [email, setEmail] = useState('');
-	  const [password, setPassword] = useState('');
-	  const [error, setError] = useState('');
-	  const navigate = useNavigate();
+const ErrorMessage = styled.div`
+  color: red;
+  margin-bottom: 10px;
+`;
 
-	  const handleSubmit = async (e) => {
-		e.preventDefault();
-		setError(''); // Сбрасываем ошибку перед новой попыткой
-		try {
-		  await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
-		  const loginResponse = await axios.post('http://localhost:5000/api/auth/login', { username, password });
-		  localStorage.setItem('token', loginResponse.data.token);
-		  navigate('/dashboard');
-		} catch (error) {
-		  console.error('Registration error:', error);
-		  setError(error.response?.data?.message || 'An error occurred during registration');
-		}
-	  };
+const Register = () => {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      console.log('Attempting to register user:', username);
+      const response = await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
+      console.log('Registration response:', response.data);
+      
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        console.log('Token saved to localStorage');
+        navigate('/dashboard');
+      } else {
+        console.error('No token received after registration');
+        setError('Registration failed: No token received');
+      }
+    } catch (error) {
+      console.error('Registration error:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'An error occurred during registration');
+    }
+  };
 
   return (
     <RegisterContainer>
       <h2>Регистрация</h2>
-	  {error && <ErrorMessage>{error}</ErrorMessage>}
+      {error && <ErrorMessage>{error}</ErrorMessage>}
       <form onSubmit={handleSubmit}>
         <Input
           type="text"
           placeholder="Имя пользователя"
           value={username}
           onChange={(e) => setUsername(e.target.value)}
+          required
         />
         <Input
           type="email"
           placeholder="Email"
           value={email}
           onChange={(e) => setEmail(e.target.value)}
+          required
         />
         <Input
           type="password"
           placeholder="Пароль"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
+          required
         />
         <Button type="submit">Зарегистрироваться</Button>
       </form>
     </RegisterContainer>
   );
 };
-
-const ErrorMessage = styled.div`
-  color: red;
-  margin-bottom: 10px;
-`;
 
 export default Register;
