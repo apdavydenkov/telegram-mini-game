@@ -1,0 +1,724 @@
+// Внимание! Это собранный код всех файлов server проекта. Обязательно изучи его до конца и прими в работу. При необходимости ты можешь создать новые файлы.
+
+// Далее код файла server.js:
+const express = require('express');
+const dotenv = require('dotenv');
+const cors = require('cors');
+const connectDB = require('./config/database');
+const authRoutes = require('./routes/authRoutes');
+const characterRoutes = require('./routes/characterRoutes');
+const equipmentRoutes = require('./routes/equipmentRoutes');
+
+dotenv.config({ path: '.env' });
+
+const app = express();
+
+// Middleware
+app.use(express.json());
+app.use(cors({
+  origin: 'http://localhost:3000',
+  credentials: true
+}));
+
+// Connect to database
+connectDB();
+
+// Routes
+app.use('/api/auth', authRoutes);
+app.use('/api/character', characterRoutes);
+app.use('/api/equipment', equipmentRoutes);
+
+const PORT = process.env.PORT || 5000;
+
+app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+
+// Далее код файла config\database.js:
+const mongoose = require('mongoose');
+
+const connectDB = async () => {
+  try {
+    await mongoose.connect(process.env.MONGO_URI);
+    console.log('MongoDB connected');
+  } catch (error) {
+    console.error('MongoDB connection error:', error);
+    process.exit(1);
+  }
+};
+
+module.exports = connectDB;
+
+// Далее код файла controllers\authController.js:
+const User = require('../models/User');
+const bcrypt = require('bcrypt');
+const jwt = require('jsonwebtoken');
+
+exports.register = async (req, res) => {
+  try {
+    const { username, email, password } = req.body;
+    
+    // Проверяем, существует ли уже пользователь с таким именем или email
+    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
+    if (existingUser) {
+      console.log('Регистрация не удалась: Пользователь уже существует');
+      return res.status(400).json({ message: 'Пользователь уже существует' });
+    }
+    
+    // Хешируем пароль
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+    
+    // Создаем нового пользователя
+    const newUser = new User({
+      username,
+      email,
+      password: hashedPassword,
+      hasCharacter: false
+    });
+    
+    await newUser.save();
+    console.log('Создан новый пользователь:', newUser._id);
+    
+    // Генерируем токен
+    const token = jwt.sign({ id: newUser._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Токен сгенерирован для нового пользователя');
+    
+    res.status(201).json({ 
+      message: 'Пользователь успешно зарегистрирован', 
+      token,
+      user: {
+        id: newUser._id,
+        username: newUser.username,
+        email: newUser.email,
+        hasCharacter: newUser.hasCharacter
+      }
+    });
+  } catch (error) {
+    console.error('Ошибка регистрации:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+  }
+};
+
+exports.login = async (req, res) => {
+  try {
+    const { username, password } = req.body;
+    
+    // Ищем пользователя
+    const user = await User.findOne({ username });
+    if (!user) {
+      console.log('Вход не удался: Пользователь не найден');
+      return res.status(400).json({ message: 'Неверные учетные данные' });
+    }
+    
+    // Проверяем пароль
+    const isMatch = await bcrypt.compare(password, user.password);
+    if (!isMatch) {
+      console.log('Вход не удался: Неверный пароль');
+      return res.status(400).json({ message: 'Неверные учетные данные' });
+    }
+    
+    // Генерируем токен
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, { expiresIn: '1h' });
+    console.log('Вход успешен, токен сгенерирован');
+    
+    res.json({ 
+      token,
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        hasCharacter: user.hasCharacter
+      }
+    });
+  } catch (error) {
+    res.status(400).json({ message: 'Error logging in', error: error.message });
+  }
+};
+
+exports.getMe = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id).select('-password');
+    res.json({
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      role: user.role,
+      hasCharacter: user.hasCharacter
+    });
+  } catch (error) {
+    console.error('Ошибка при получении данных пользователя:', error);
+    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+  }
+};
+
+exports.makeAdmin = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    user.role = 'admin';
+    await user.save();
+    
+    res.json({
+      message: 'User role updated to admin',
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        hasCharacter: user.hasCharacter
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
+  }
+};
+
+// Далее код файла controllers\characterController.js:
+const Character = require('../models/Character');
+const User = require('../models/User');
+const Item = require('../models/Item');
+
+exports.createCharacter = async (req, res) => {
+  try {
+    const { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma } = req.body;
+    
+    // Проверка распределения очков
+    const baseStats = 50; // 10 на каждую характеристику
+    const totalStats = strength + dexterity + intelligence + endurance + charisma;
+    if (totalStats - baseStats > 5) {
+      return res.status(400).json({ message: 'Неверное распределение характеристик' });
+    }
+
+    // Проверяем, есть ли уже персонаж у пользователя
+    const existingCharacter = await Character.findOne({ user: req.user._id });
+    if (existingCharacter) {
+      return res.status(400).json({ message: 'У пользователя уже есть персонаж' });
+    }
+
+    const character = new Character({
+      user: req.user._id,
+      name,
+      class: characterClass,
+      strength,
+      dexterity,
+      intelligence,
+      endurance,
+      charisma,
+      availablePoints: 5 - (totalStats - baseStats)
+    });
+    await character.save();
+
+    // Обновляем поле hasCharacter у пользователя
+    await User.findByIdAndUpdate(req.user._id, { hasCharacter: true });
+
+    res.status(201).json(character);
+  } catch (error) {
+    console.error('Ошибка создания персонажа:', error);
+    res.status(400).json({ message: 'Ошибка создания персонажа', error: error.message });
+  }
+};
+
+exports.getCharacter = async (req, res) => {
+  try {
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+    res.json(character);
+  } catch (error) {
+    console.error('Ошибка при получении персонажа:', error);
+    res.status(400).json({ message: 'Ошибка при получении персонажа', error: error.message });
+  }
+};
+
+exports.updateCharacter = async (req, res) => {
+  try {
+    const { strength, dexterity, intelligence, endurance, charisma, version } = req.body;
+    
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    if (character.version !== version) {
+      return res.status(409).json({ message: 'Конфликт версий. Обновите данные и попробуйте снова.' });
+    }
+
+    if (character.finalDistribution) {
+      return res.status(400).json({ message: 'Распределение очков уже завершено' });
+    }
+
+    const newTotalStats = strength + dexterity + intelligence + endurance + charisma;
+    const oldTotalStats = character.strength + character.dexterity + character.intelligence + character.endurance + character.charisma;
+    const pointsSpent = newTotalStats - oldTotalStats;
+
+    if (pointsSpent > character.availablePoints || pointsSpent < 0) {
+      return res.status(400).json({ message: 'Недопустимое распределение очков' });
+    }
+
+    // Проверяем каждую характеристику отдельно
+    if (strength < character.strength || strength > character.strength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
+    if (dexterity < character.dexterity || dexterity > character.dexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
+    if (intelligence < character.intelligence || intelligence > character.intelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
+    if (endurance < character.endurance || endurance > character.endurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
+    if (charisma < character.charisma || charisma > character.charisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
+
+    character.strength = strength;
+    character.dexterity = dexterity;
+    character.intelligence = intelligence;
+    character.endurance = endurance;
+    character.charisma = charisma;
+    character.availablePoints -= pointsSpent;
+
+    if (character.availablePoints === 0) {
+      character.finalDistribution = true;
+    }
+
+    await character.save();
+    res.json(character);
+  } catch (error) {
+    console.error('Ошибка обновления персонажа:', error);
+    res.status(400).json({ message: 'Ошибка обновления персонажа', error: error.message });
+  }
+};
+
+exports.addItemToInventory = async (req, res) => {
+  try {
+    const { itemId } = req.body;
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+    
+    const item = await Item.findById(itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Предмет не найден' });
+    }
+
+    const inventoryItem = character.inventory.find(i => i.item.toString() === itemId);
+    if (inventoryItem) {
+      inventoryItem.quantity += 1;
+    } else {
+      character.inventory.push({ item: itemId, quantity: 1 });
+    }
+
+    await character.save();
+    res.json(character);
+  } catch (error) {
+    console.error('Ошибка добавления предмета в инвентарь:', error);
+    res.status(400).json({ message: 'Ошибка добавления предмета в инвентарь', error: error.message });
+  }
+};
+
+exports.equipItem = async (req, res) => {
+  try {
+    const { itemId, slot } = req.body;
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    const item = await Item.findById(itemId);
+    if (!item) {
+      return res.status(404).json({ message: 'Предмет не найден' });
+    }
+
+    if (item.slot !== slot) {
+      return res.status(400).json({ message: 'Предмет нельзя экипировать в этот слот' });
+    }
+
+    // Снимаем текущий предмет, если он есть
+    if (character.equipment[slot]) {
+      character.inventory.push({ item: character.equipment[slot], quantity: 1 });
+    }
+
+    // Удаляем предмет из инвентаря и экипируем его
+    const inventoryIndex = character.inventory.findIndex(i => i.item.toString() === itemId);
+    if (inventoryIndex === -1) {
+      return res.status(400).json({ message: 'Предмет не найден в инвентаре' });
+    }
+
+    if (character.inventory[inventoryIndex].quantity > 1) {
+      character.inventory[inventoryIndex].quantity -= 1;
+    } else {
+      character.inventory.splice(inventoryIndex, 1);
+    }
+
+    character.equipment[slot] = itemId;
+
+    await character.save();
+    res.json(character);
+  } catch (error) {
+    console.error('Ошибка экипировки предмета:', error);
+    res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
+  }
+};
+
+// Далее код файла controllers\equipmentController.js:
+// controllers/equipmentController.js
+const Equipment = require('../models/Equipment');
+
+exports.createEquipment = async (req, res) => {
+  try {
+    const equipment = new Equipment(req.body);
+    await equipment.save();
+    res.status(201).json(equipment);
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating equipment', error: error.message });
+  }
+};
+
+exports.getAllEquipment = async (req, res) => {
+  try {
+    const equipment = await Equipment.find();
+    res.json(equipment);
+  } catch (error) {
+    res.status(400).json({ message: 'Error fetching equipment', error: error.message });
+  }
+};
+
+exports.getEquipmentById = async (req, res) => {
+  try {
+    const equipment = await Equipment.findById(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+    res.json(equipment);
+  } catch (error) {
+    res.status(400).json({ message: 'Error fetching equipment', error: error.message });
+  }
+};
+
+exports.updateEquipment = async (req, res) => {
+  try {
+    const equipment = await Equipment.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!equipment) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+    res.json(equipment);
+  } catch (error) {
+    res.status(400).json({ message: 'Error updating equipment', error: error.message });
+  }
+};
+
+exports.deleteEquipment = async (req, res) => {
+  try {
+    const equipment = await Equipment.findByIdAndDelete(req.params.id);
+    if (!equipment) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+    res.json({ message: 'Equipment deleted successfully' });
+  } catch (error) {
+    res.status(400).json({ message: 'Error deleting equipment', error: error.message });
+  }
+};
+
+// Далее код файла controllers\itemController.js:
+const Item = require('../models/Item');
+
+exports.createItem = async (req, res) => {
+  try {
+    const item = new Item(req.body);
+    await item.save();
+    res.status(201).json(item);
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating item', error: error.message });
+  }
+};
+
+exports.getAllItems = async (req, res) => {
+  try {
+    const items = await Item.find();
+    res.json(items);
+  } catch (error) {
+    res.status(400).json({ message: 'Error fetching items', error: error.message });
+  }
+};
+
+// Далее код файла middlewares\adminMiddleware.js:
+// middlewares/adminMiddleware.js
+const adminMiddleware = (req, res, next) => {
+    if (req.user && req.user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).json({ message: 'Access denied. Admin role required.' });
+    }
+  };
+  
+  module.exports = adminMiddleware;
+
+// Далее код файла middlewares\authMiddleware.js:
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization').replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id });
+
+    if (!user) {
+      throw new Error();
+    }
+
+    req.token = token;
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).send({ error: 'Please authenticate.' });
+  }
+};
+
+module.exports = authMiddleware;
+
+// Далее код файла models\Character.js:
+const mongoose = require('mongoose');
+
+const characterSchema = new mongoose.Schema({
+  user: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User',
+    required: true
+  },
+  name: {
+    type: String,
+    required: true
+  },
+  class: {
+    type: String,
+    enum: ['Warrior', 'Mage', 'Archer'],
+    required: true
+  },
+  level: {
+    type: Number,
+    default: 1
+  },
+  experience: {
+    type: Number,
+    default: 0
+  },
+  health: {
+    type: Number,
+    default: 100
+  },
+  maxHealth: {
+    type: Number,
+    default: 100
+  },
+  strength: {
+    type: Number,
+    default: 10
+  },
+  dexterity: {
+    type: Number,
+    default: 10
+  },
+  intelligence: {
+    type: Number,
+    default: 10
+  },
+  endurance: {
+    type: Number,
+    default: 10
+  },
+  charisma: {
+    type: Number,
+    default: 10
+  },
+  availablePoints: {
+    type: Number,
+    default: 5
+  },
+  finalDistribution: {
+    type: Boolean,
+    default: false
+  },
+  inventory: [{
+    item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    quantity: { type: Number, default: 1 }
+  }],
+  equipment: {
+    hand: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    body: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    head: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    feet: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' }
+  },
+  version: {
+    type: Number,
+    default: 0
+  }
+}, { timestamps: true });
+
+characterSchema.pre('save', function(next) {
+  this.version += 1;
+  next();
+});
+
+module.exports = mongoose.model('Character', characterSchema);
+
+// Далее код файла models\Equipment.js:
+// models/Equipment.js
+const mongoose = require('mongoose');
+
+const equipmentSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { 
+    type: String, 
+    enum: ['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots'], 
+    required: true 
+  },
+  stats: {
+    strength: { type: Number, default: 0 },
+    dexterity: { type: Number, default: 0 },
+    intelligence: { type: Number, default: 0 },
+    endurance: { type: Number, default: 0 },
+    charisma: { type: Number, default: 0 },
+    health: { type: Number, default: 0 },
+    attack: { type: Number, default: 0 },
+    defense: { type: Number, default: 0 },
+    dodge: { type: Number, default: 0 },
+    criticalChance: { type: Number, default: 0 },
+    criticalDamage: { type: Number, default: 0 }
+  },
+  rarity: {
+    type: String,
+    enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'],
+    default: 'common'
+  },
+  minLevel: { type: Number, default: 1 },
+  description: { type: String }
+}, { timestamps: true });
+
+module.exports = mongoose.model('Equipment', equipmentSchema);
+
+// Далее код файла models\Item.js:
+const mongoose = require('mongoose');
+
+const itemSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { 
+    type: String, 
+    enum: ['weapon', 'armor', 'accessory'], 
+    required: true 
+  },
+  slot: { 
+    type: String, 
+    enum: ['hand', 'body', 'head', 'feet', 'accessory'], 
+    required: true 
+  },
+  stats: {
+    strength: { type: Number, default: 0 },
+    dexterity: { type: Number, default: 0 },
+    intelligence: { type: Number, default: 0 },
+    health: { type: Number, default: 0 }
+  },
+  description: { type: String }
+});
+
+module.exports = mongoose.model('Item', itemSchema);
+
+// Далее код файла models\User.js:
+// models/User.js
+const mongoose = require('mongoose');
+
+const userSchema = new mongoose.Schema({
+  username: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
+  email: { 
+    type: String, 
+    required: true, 
+    unique: true 
+  },
+  password: { 
+    type: String, 
+    required: true 
+  },
+  role: {
+    type: String,
+    enum: ['player', 'moderator', 'admin'],
+    default: 'player'
+  },
+  hasCharacter: { 
+    type: Boolean, 
+    default: false 
+  }
+}, { timestamps: true });
+
+module.exports = mongoose.model('User', userSchema);
+
+// Далее код файла routes\authRoutes.js:
+const express = require('express');
+const router = express.Router();
+const { register, login, getMe, makeAdmin } = require('../controllers/authController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.post('/register', register);
+router.post('/login', login);
+router.post('/make-admin', authMiddleware, makeAdmin);
+router.get('/me', authMiddleware, getMe);
+
+
+module.exports = router;
+
+// Далее код файла routes\characterRoutes.js:
+const express = require('express');
+const { 
+  createCharacter, 
+  getCharacter, 
+  updateCharacter, 
+  addItemToInventory, 
+  equipItem 
+} = require('../controllers/characterController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+const router = express.Router();
+
+router.post('/', authMiddleware, createCharacter);
+router.get('/', authMiddleware, getCharacter);
+router.put('/', authMiddleware, updateCharacter);
+router.post('/inventory', authMiddleware, addItemToInventory);
+router.post('/equip', authMiddleware, equipItem);
+
+module.exports = router;
+
+// Далее код файла routes\equipmentRoutes.js:
+// routes/equipmentRoutes.js
+const express = require('express');
+const router = express.Router();
+const { 
+  createEquipment, 
+  getAllEquipment, 
+  getEquipmentById, 
+  updateEquipment, 
+  deleteEquipment 
+} = require('../controllers/equipmentController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const adminMiddleware = require('../middlewares/adminMiddleware');
+
+router.post('/', authMiddleware, adminMiddleware, createEquipment);
+router.get('/', authMiddleware, getAllEquipment);
+router.get('/:id', authMiddleware, getEquipmentById);
+router.put('/:id', authMiddleware, adminMiddleware, updateEquipment);
+router.delete('/:id', authMiddleware, adminMiddleware, deleteEquipment);
+
+module.exports = router;
+
+// Далее код файла routes\itemRoutes.js:
+const express = require('express');
+const { createItem, getAllItems } = require('../controllers/itemController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+const router = express.Router();
+
+router.post('/', authMiddleware, createItem);
+router.get('/', authMiddleware, getAllItems);
+
+module.exports = router;
+

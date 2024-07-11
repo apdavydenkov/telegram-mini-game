@@ -26,7 +26,10 @@ const EquipmentList = () => {
   const handleDelete = async (id) => {
     if (window.confirm('Are you sure you want to delete this equipment?')) {
       try {
-        await axios.delete(`${API_BASE_URL}/api/equipment/${id}`);
+        const token = localStorage.getItem('token');
+        await axios.delete(`${API_BASE_URL}/api/equipment/${id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
         fetchEquipment();
       } catch (error) {
         console.error('Error deleting equipment:', error);
@@ -34,41 +37,56 @@ const EquipmentList = () => {
     }
   };
 
+  const handleAddToCharacter = (id) => {
+    // This function will be implemented later
+    console.log('Add to character:', id);
+  };
+
   return (
     <div>
-      <h2 className="text-xl font-semibold mb-4">Equipment List</h2>
-      <Link to="/admin/equipment/new" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4 inline-block">
-        Create New Equipment
-      </Link>
-      <table className="w-full border-collapse">
-        <thead>
-          <tr className="bg-gray-200">
-            <th className="border p-2">Name</th>
-            <th className="border p-2">Type</th>
-            <th className="border p-2">Rarity</th>
-            <th className="border p-2">Min Level</th>
-            <th className="border p-2">Actions</th>
-          </tr>
-        </thead>
-        <tbody>
-          {equipment.map((item) => (
-            <tr key={item._id} className="hover:bg-gray-100">
-              <td className="border p-2">{item.name}</td>
-              <td className="border p-2">{item.type}</td>
-              <td className="border p-2">{item.rarity}</td>
-              <td className="border p-2">{item.minLevel}</td>
-              <td className="border p-2">
-                <Link to={`/admin/equipment/edit/${item._id}`} className="text-blue-500 hover:text-blue-700 mr-2">
-                  Edit
-                </Link>
-                <button onClick={() => handleDelete(item._id)} className="text-red-500 hover:text-red-700">
-                  Delete
-                </button>
-              </td>
+      <div className="flex justify-between items-center mb-6">
+        <h2 className="text-2xl font-semibold text-gray-800">Equipment</h2>
+        <Link to="/admin/equipment/new" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
+          Create New
+        </Link>
+      </div>
+      <div className="bg-white shadow-md rounded-lg overflow-hidden">
+        <table className="min-w-full divide-y divide-gray-200">
+          <thead className="bg-gray-50">
+            <tr>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Rarity</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Min Level</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody className="bg-white divide-y divide-gray-200">
+            {equipment.map((item) => (
+              <tr key={item._id}>
+                <td className="px-6 py-4 whitespace-nowrap">
+                  <div className="flex items-center">
+                    <div className="flex-shrink-0 h-10 w-10">
+                      <img className="h-10 w-10 rounded-full" src={item.image || "https://via.placeholder.com/150"} alt={item.name} />
+                    </div>
+                    <div className="ml-4">
+                      <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    </div>
+                  </div>
+                </td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.rarity}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.minLevel}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                  <Link to={`/admin/equipment/edit/${item._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
+                  <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
+                  <button onClick={() => handleAddToCharacter(item._id)} className="text-green-600 hover:text-green-900">Add to Character</button>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

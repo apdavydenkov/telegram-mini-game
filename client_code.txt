@@ -1,0 +1,1256 @@
+// Внимание! Это собранный код всех файлов client проекта. Обязательно изучи его до конца и прими в работу. При необходимости ты можешь создать новые файлы.
+
+// Далее код файла App.js:
+import React from 'react';
+import { BrowserRouter as Router, Route, Routes, Navigate } from 'react-router-dom';
+import LoginPage from './pages/LoginPage';
+import RegisterPage from './pages/RegisterPage';
+import Dashboard from './components/Dashboard/Dashboard';
+import AdminPanel from './components/Admin/AdminPanel';
+
+const PrivateRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  return token ? children : <Navigate to="/login" replace />;
+};
+
+const AdminRoute = ({ children }) => {
+  const token = localStorage.getItem('token');
+  const user = JSON.parse(localStorage.getItem('user'));
+  
+  if (token && user && user.role === 'admin') {
+    return children;
+  } else {
+    console.log('Access denied: ', { token, user }); // Для отладки
+    return <Navigate to="/dashboard" replace />;
+  }
+};
+
+function App() {
+  return (
+    <Router>
+      <div className="App">
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route 
+            path="/dashboard" 
+            element={
+              <PrivateRoute>
+                <Dashboard />
+              </PrivateRoute>
+            } 
+          />
+          <Route 
+            path="/admin/*" 
+            element={
+              <AdminRoute>
+                <AdminPanel />
+              </AdminRoute>
+            } 
+          />
+          <Route path="/" element={<Navigate to="/login" replace />} />
+        </Routes>
+      </div>
+    </Router>
+  );
+}
+
+export default App;
+
+// Далее код файла index.js:
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+
+
+// Далее код файла reportWebVitals.js:
+const reportWebVitals = onPerfEntry => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+
+// Далее код файла components\Admin\AdminPanel.js:
+import React from 'react';
+import { Link, Route, Routes } from 'react-router-dom';
+import EquipmentList from './EquipmentList';
+import EquipmentForm from './EquipmentForm';
+
+const AdminPanel = () => {
+  return (
+    <div className="container mx-auto p-4">
+      <h1 className="text-2xl font-bold mb-4">Admin Panel</h1>
+      <nav className="mb-4">
+        <ul className="flex space-x-4">
+          <li>
+            <Link to="/admin/equipment" className="text-blue-500 hover:text-blue-700">
+              Equipment
+            </Link>
+          </li>
+          {/* Add more admin links here as needed */}
+        </ul>
+      </nav>
+      <Routes>
+        <Route path="equipment" element={<EquipmentList />} />
+        <Route path="equipment/new" element={<EquipmentForm />} />
+        <Route path="equipment/edit/:id" element={<EquipmentForm />} />
+      </Routes>
+    </div>
+  );
+};
+
+export default AdminPanel;
+
+// Далее код файла components\Admin\EquipmentForm.js:
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000';
+
+const EquipmentForm = () => {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const [equipment, setEquipment] = useState({
+    name: '',
+    type: '',
+    stats: {
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      endurance: 0,
+      charisma: 0,
+      health: 0,
+      attack: 0,
+      defense: 0,
+      dodge: 0,
+      criticalChance: 0,
+      criticalDamage: 0
+    },
+    rarity: '',
+    minLevel: 1,
+    description: ''
+  });
+
+  useEffect(() => {
+    if (id) {
+      fetchEquipment();
+    }
+  }, [id]);
+
+  const fetchEquipment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/equipment/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEquipment(response.data);
+    } catch (error) {
+      console.error('Error fetching equipment:', error.response?.data || error.message);
+      // Можно добавить обработку ошибки аутентификации
+      if (error.response && error.response.status === 401) {
+        // Например, перенаправление на страницу входа
+        // navigate('/login');
+      }
+    }
+  };
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setEquipment(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleStatsChange = (e) => {
+    const { name, value } = e.target;
+    setEquipment(prev => ({
+      ...prev,
+      stats: { ...prev.stats, [name]: parseInt(value) }
+    }));
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      if (id) {
+        await axios.put(`${API_BASE_URL}/api/equipment/${id}`, equipment, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      } else {
+        await axios.post(`${API_BASE_URL}/api/equipment`, equipment, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+      }
+      navigate('/admin/equipment');
+    } catch (error) {
+      console.error('Error saving equipment:', error.response?.data || error.message);
+      // Обработка ошибки аутентификации
+      if (error.response && error.response.status === 401) {
+        // Например, перенаправление на страницу входа
+        // navigate('/login');
+      }
+    }
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div>
+        <label className="block mb-1">Name:</label>
+        <input
+          type="text"
+          name="name"
+          value={equipment.name}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block mb-1">Type:</label>
+        <select
+          name="type"
+          value={equipment.type}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+          required
+        >
+          <option value="">Select Type</option>
+          <option value="weapon">Weapon</option>
+          <option value="armor">Armor</option>
+          <option value="accessory">Accessory</option>
+          <option value="banner">Banner</option>
+          <option value="helmet">Helmet</option>
+          <option value="shield">Shield</option>
+          <option value="cloak">Cloak</option>
+          <option value="belt">Belt</option>
+          <option value="boots">Boots</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block mb-1">Stats:</label>
+        {Object.entries(equipment.stats).map(([stat, value]) => (
+          <div key={stat} className="flex items-center space-x-2 mb-2">
+            <label>{stat}:</label>
+            <input
+              type="number"
+              name={stat}
+              value={value}
+              onChange={handleStatsChange}
+              className="w-20 px-2 py-1 border rounded"
+            />
+          </div>
+        ))}
+      </div>
+
+      <div>
+        <label className="block mb-1">Rarity:</label>
+        <select
+          name="rarity"
+          value={equipment.rarity}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+          required
+        >
+          <option value="">Select Rarity</option>
+          <option value="common">Common</option>
+          <option value="uncommon">Uncommon</option>
+          <option value="rare">Rare</option>
+          <option value="epic">Epic</option>
+          <option value="legendary">Legendary</option>
+        </select>
+      </div>
+
+      <div>
+        <label className="block mb-1">Minimum Level:</label>
+        <input
+          type="number"
+          name="minLevel"
+          value={equipment.minLevel}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+          min="1"
+          required
+        />
+      </div>
+
+      <div>
+        <label className="block mb-1">Description:</label>
+        <textarea
+          name="description"
+          value={equipment.description}
+          onChange={handleChange}
+          className="w-full px-3 py-2 border rounded"
+          rows="3"
+        ></textarea>
+      </div>
+
+      <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
+        {id ? 'Update Equipment' : 'Create Equipment'}
+      </button>
+    </form>
+  );
+};
+
+export default EquipmentForm;
+
+// Далее код файла components\Admin\EquipmentList.js:
+import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000';
+
+const EquipmentList = () => {
+  const [equipment, setEquipment] = useState([]);
+
+  useEffect(() => {
+    fetchEquipment();
+  }, []);
+
+  const fetchEquipment = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.get(`${API_BASE_URL}/api/equipment/`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setEquipment(response.data);
+    } catch (error) {
+      console.error('Error fetching equipment:', error.response?.data || error.message);
+    }
+  };
+
+  const handleDelete = async (id) => {
+    if (window.confirm('Are you sure you want to delete this equipment?')) {
+      try {
+        await axios.delete(`${API_BASE_URL}/api/equipment/${id}`);
+        fetchEquipment();
+      } catch (error) {
+        console.error('Error deleting equipment:', error);
+      }
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="text-xl font-semibold mb-4">Equipment List</h2>
+      <Link to="/admin/equipment/new" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600 mb-4 inline-block">
+        Create New Equipment
+      </Link>
+      <table className="w-full border-collapse">
+        <thead>
+          <tr className="bg-gray-200">
+            <th className="border p-2">Name</th>
+            <th className="border p-2">Type</th>
+            <th className="border p-2">Rarity</th>
+            <th className="border p-2">Min Level</th>
+            <th className="border p-2">Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {equipment.map((item) => (
+            <tr key={item._id} className="hover:bg-gray-100">
+              <td className="border p-2">{item.name}</td>
+              <td className="border p-2">{item.type}</td>
+              <td className="border p-2">{item.rarity}</td>
+              <td className="border p-2">{item.minLevel}</td>
+              <td className="border p-2">
+                <Link to={`/admin/equipment/edit/${item._id}`} className="text-blue-500 hover:text-blue-700 mr-2">
+                  Edit
+                </Link>
+                <button onClick={() => handleDelete(item._id)} className="text-red-500 hover:text-red-700">
+                  Delete
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+};
+
+export default EquipmentList;
+
+// Далее код файла components\Admin\MakeAdminButton.js:
+import React from 'react';
+import axios from 'axios';
+
+const MakeAdminButton = () => {
+  const handleMakeAdmin = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('/api/auth/make-admin', {}, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      console.log('Make admin response:', response.data);
+      // Обновите пользователя в localStorage
+      const updatedUser = response.data.user;
+      localStorage.setItem('user', JSON.stringify(updatedUser));
+      alert('You are now an admin!');
+    } catch (error) {
+      console.error('Error making admin:', error);
+      alert('Failed to become admin');
+    }
+  };
+
+  return (
+    <button onClick={handleMakeAdmin}>
+      Make me an admin
+    </button>
+  );
+};
+
+export default MakeAdminButton;
+
+// Далее код файла components\Auth\Login.js:
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+
+const Login = () => {
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(''); // Сбрасываем ошибку перед новой попыткой
+    try {
+      const response = await axios.post('http://localhost:5000/api/auth/login', { username, password });
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('user', JSON.stringify(response.data.user));      
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Ошибка входа:', error);
+      setError(error.response?.data?.message || 'Произошла ошибка при входе');
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Вход</h2>
+      {error && <div className="mt-2 text-center text-sm text-red-600">{error}</div>}
+      <form className="space-y-6" onSubmit={handleSubmit}>
+        <div>
+          <label htmlFor="username" className="block text-sm font-medium text-gray-700">Имя пользователя</label>
+          <div className="mt-1">
+            <input
+              id="username"
+              name="username"
+              type="text"
+              required
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <label htmlFor="password" className="block text-sm font-medium text-gray-700">Пароль</label>
+          <div className="mt-1">
+            <input
+              id="password"
+              name="password"
+              type="password"
+              required
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+            />
+          </div>
+        </div>
+        <div>
+          <button
+            type="submit"
+            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
+          >
+            Войти
+          </button>
+        </div>
+      </form>
+      <div className="mt-6">
+        <Link
+          to="/register"
+          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-indigo-100 hover:bg-indigo-200"
+        >
+          Нет аккаунта? Зарегистрироваться
+        </Link>
+      </div>
+    </div>
+  );
+};
+
+export default Login;
+
+
+// Далее код файла components\Auth\Register.js:
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useNavigate, Link } from 'react-router-dom';
+
+const Register = () => {
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const navigate = useNavigate();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    try {
+      console.log('Attempting to register user:', username);
+      const response = await axios.post('http://localhost:5000/api/auth/register', { username, email, password });
+      console.log('Registration response:', response.data);
+      
+      if (response.data.token) {
+        localStorage.setItem('token', response.data.token);
+        console.log('Token saved to localStorage');
+        navigate('/dashboard');
+      } else {
+        console.error('No token received after registration');
+        setError('Registration failed: No token received');
+      }
+    } catch (error) {
+      console.error('Registration error:', error.response?.data?.message || error.message);
+      setError(error.response?.data?.message || 'An error occurred during registration');
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto mt-8">
+      <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+        <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-6">Регистрация</h2>
+        {error && <div className="text-red-600 mb-4">{error}</div>}
+        <form onSubmit={handleSubmit} className="space-y-6">
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium text-gray-700">Имя пользователя</label>
+            <input
+              id="username"
+              name="username"
+              type="text"
+              value={username}
+              onChange={(e) => setUsername(e.target.value)}
+              required
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              required
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Пароль</label>
+            <input
+              id="password"
+              name="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
+            />
+          </div>
+          <div>
+            <button
+              type="submit"
+              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+            >
+              Зарегистрироваться
+            </button>
+          </div>
+        </form>
+        <div className="mt-4 text-sm text-center text-gray-600">
+          Уже есть аккаунт?{' '}
+          <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
+            Войти
+          </Link>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Register;
+
+
+// Далее код файла components\Character\Character.js:
+import React from 'react';
+
+const Character = ({ character }) => {
+//  const expPercentage = character.experience ? (character.experience / 100) * 100 : 0;
+//  const healthPercentage = character.maxHealth ? (character.health / character.maxHealth) * 100 : 0;
+
+  return (
+    <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
+      <div className="grid grid-cols-12 grid-rows-17 gap-1">
+        <div className="col-span-12 text-center text-xl font-bold flex items-center justify-center">
+          {character.name} 
+          <span className="ml-2 bg-blue-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-sm">
+            {character.level}
+          </span>
+        </div>
+        
+        {/* EXP Bar */}
+        <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden">
+          <div 
+            className="h-full bg-yellow-400 flex items-center justify-center text-xs font-bold"
+          >
+            EXP: {character.experience}/100
+          </div>
+        </div>
+        
+        {/* HP Bar */}
+        <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden">
+          <div 
+            className="h-full bg-red-500 flex items-center justify-center text-xs font-bold text-white"
+          >
+            HP: {character.health}/{character.maxHealth}
+          </div>
+        </div>
+
+        {/* Character silhouette */}
+        <div className="col-span-6 row-span-8 col-start-4 row-start-4 bg-gray-300 rounded-md flex items-center justify-center">
+          <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
+        </div>
+
+        {/* Banner */}
+        <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Banner" alt="Banner" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Helmet */}
+        <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Helmet" alt="Helmet" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Weapon */}
+        <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Weapon" alt="Weapon" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Shield */}
+        <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Shield" alt="Shield" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Armor */}
+        <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Armor" alt="Armor" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Cloak */}
+        <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Cloak" alt="Cloak" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Belt */}
+        <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Belt" alt="Belt" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Boots */}
+        <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/60x60?text=Boots" alt="Boots" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Inventory items */}
+        <div className="col-span-2 row-span-2 col-start-4 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Item+1" alt="Item 1" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-6 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Item+2" alt="Item 2" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-8 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Item+3" alt="Item 3" className="w-full h-full object-cover" />
+        </div>
+
+        {/* Skills */}
+        <div className="col-span-2 row-span-2 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+1" alt="Skill 1" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-3 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+2" alt="Skill 2" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-5 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+3" alt="Skill 3" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-7 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+4" alt="Skill 4" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-9 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+5" alt="Skill 5" className="w-full h-full object-cover" />
+        </div>
+        <div className="col-span-2 row-span-2 col-start-11 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
+          <img src="https://placehold.co/40x40?text=Skill+6" alt="Skill 6" className="w-full h-full object-cover" />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default Character;
+
+// Далее код файла components\Character\CharacterStats.js:
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar } from 'react-icons/fa';
+
+const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
+  const [updatedCharacter, setUpdatedCharacter] = useState(character);
+  const [error, setError] = useState(null);
+
+  useEffect(() => {
+    setUpdatedCharacter(character);
+  }, [character]);
+
+  const calculateDamage = () => updatedCharacter.strength * 10;
+  const calculateArmor = () => updatedCharacter.strength * 5;
+  const calculateCrit = () => (updatedCharacter.strength * 3) + (updatedCharacter.dexterity * 3);
+  const calculateDodge = () => (updatedCharacter.dexterity * 3) + (updatedCharacter.intelligence * 3);
+  const calculateHealthRegen = () => 1 + (updatedCharacter.intelligence * 0.05);
+
+	const handleStatIncrease = async (stat) => {
+	  if (updatedCharacter.finalDistribution) return;
+
+	  const token = localStorage.getItem('token');  // Перемещаем это сюда
+
+	  if (updatedCharacter.availablePoints > 0) {
+		const newCharacter = {
+		  ...updatedCharacter,
+		  [stat]: updatedCharacter[stat] + 1,
+		  availablePoints: updatedCharacter.availablePoints - 1
+		};
+
+		try {
+		  const response = await axios.put('http://localhost:5000/api/character', 
+			{ ...newCharacter, version: updatedCharacter.version },
+			{ headers: { Authorization: `Bearer ${token}` } }
+		  );
+		  setUpdatedCharacter(response.data);
+		  onCharacterUpdate(response.data);
+		  setError(null);
+		} catch (error) {
+		  if (error.response && error.response.status === 409) {
+			// Конфликт версий, получаем актуальные данные и пробуем снова
+			try {
+			  const refreshResponse = await axios.get('http://localhost:5000/api/character', {
+				headers: { Authorization: `Bearer ${token}` }
+			  });
+			  setUpdatedCharacter(refreshResponse.data);
+			  onCharacterUpdate(refreshResponse.data);
+			  setError('Данные были обновлены. Пожалуйста, попробуйте снова.');
+			} catch (refreshError) {
+			  console.error('Ошибка обновления данных:', refreshError);
+			  setError('Не удалось обновить данные. Пожалуйста, обновите страницу.');
+			}
+		  } else {
+			console.error('Ошибка обновления характеристик:', error);
+			setError('Не удалось обновить характеристики. Попробуйте еще раз.');
+		  }
+		}
+	  }
+	};
+
+  const StatItem = ({ icon: Icon, label, value, stat, isAdjustable = true }) => (
+    <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
+      <span className="flex items-center text-gray-700">
+        <Icon className="mr-2 text-blue-500" />
+        {label}:
+      </span>
+      <div className="flex items-center">
+        <span className="font-semibold text-blue-600 mx-2">{value}</span>
+        {isAdjustable && !updatedCharacter.finalDistribution && (
+          <button 
+            onClick={() => handleStatIncrease(stat)} 
+            disabled={updatedCharacter.availablePoints <= 0}
+            className="w-6 h-6 bg-green-500 text-white rounded disabled:bg-gray-300"
+          >
+            +
+          </button>
+        )}
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
+      {error && <div className="col-span-2 text-red-500">{error}</div>}
+      <div>
+        <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
+        <StatItem icon={FaDumbbell} label="Сила" value={updatedCharacter.strength} stat="strength" />
+        <StatItem icon={FaRunning} label="Ловкость" value={updatedCharacter.dexterity} stat="dexterity" />
+        <StatItem icon={FaBrain} label="Интеллект" value={updatedCharacter.intelligence} stat="intelligence" />
+        <StatItem icon={FaHeart} label="Выносливость" value={updatedCharacter.endurance} stat="endurance" />
+        <StatItem icon={FaSmile} label="Харизма" value={updatedCharacter.charisma} stat="charisma" />
+        {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
+          <div className="mt-2 p-2 bg-yellow-300 rounded-lg shadow-sm flex items-center text-lg font-semibold text-red-600 animate-pulse">
+            <FaStar className="mr-2 text-yellow-500" />
+            Доступные навыки: {updatedCharacter.availablePoints}
+          </div>
+        )}
+      </div>
+      <div>
+        <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
+        <StatItem icon={FaFistRaised} label="Урон" value={calculateDamage()} isAdjustable={false} />
+        <StatItem icon={FaShieldAlt} label="Броня" value={calculateArmor()} isAdjustable={false} />
+        <StatItem icon={FaBullseye} label="Крит" value={calculateCrit()} isAdjustable={false} />
+        <StatItem icon={FaWind} label="Уворот" value={calculateDodge()} isAdjustable={false} />
+        <StatItem icon={FaHeartbeat} label="Реген" value={`${calculateHealthRegen().toFixed(2)}/сек`} isAdjustable={false} />
+      </div>
+    </div>
+  );
+};
+
+export default CharacterInfo;
+
+// Далее код файла components\Character\CreateCharacter.js:
+import React, { useState } from 'react';
+import axios from 'axios';
+
+const CreateCharacter = ({ onCharacterCreated }) => {
+  const [name, setName] = useState('');
+  const [characterClass, setCharacterClass] = useState('Warrior');
+  const [strength, setStrength] = useState(10);
+  const [dexterity, setDexterity] = useState(10);
+  const [intelligence, setIntelligence] = useState(10);
+  const [endurance, setEndurance] = useState(10);
+  const [charisma, setCharisma] = useState(10);
+  const [availablePoints, setAvailablePoints] = useState(5);
+
+  const handleStatChange = (stat, value) => {
+    if (availablePoints > 0 || value < 0) {
+      switch(stat) {
+        case 'strength':
+          setStrength(prev => Math.max(10, prev + value));
+          break;
+        case 'dexterity':
+          setDexterity(prev => Math.max(10, prev + value));
+          break;
+        case 'intelligence':
+          setIntelligence(prev => Math.max(10, prev + value));
+          break;
+        case 'endurance':
+          setEndurance(prev => Math.max(10, prev + value));
+          break;
+        case 'charisma':
+          setCharisma(prev => Math.max(10, prev + value));
+          break;
+        default:
+          break;
+      }
+      setAvailablePoints(prev => prev - value);
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('http://localhost:5000/api/character', 
+        { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      onCharacterCreated(response.data);
+    } catch (error) {
+      console.error('Error creating character:', error);
+    }
+  };
+
+  return (
+    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
+      <h2 className="text-2xl font-bold mb-4">Create Character</h2>
+      <form onSubmit={handleSubmit}>
+        <input
+          type="text"
+          placeholder="Character Name"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
+          required
+        />
+        <select
+          value={characterClass}
+          onChange={(e) => setCharacterClass(e.target.value)}
+          className="w-full p-2 mb-4 border rounded"
+        >
+          <option value="Warrior">Warrior</option>
+          <option value="Mage">Mage</option>
+          <option value="Archer">Archer</option>
+        </select>
+        <p className="mb-2">Available points: {availablePoints}</p>
+        {['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].map((stat) => (
+          <div key={stat} className="flex justify-between items-center mb-2">
+            <span className="capitalize">{stat}: {eval(stat)}</span>
+            <div>
+              <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
+              <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>
+            </div>
+          </div>
+        ))}
+        <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600">Create Character</button>
+      </form>
+    </div>
+  );
+};
+
+export default CreateCharacter;
+
+// Далее код файла components\Dashboard\Dashboard.js:
+import React, { useEffect, useState } from 'react';
+import axios from 'axios';
+import Character from '../Character/Character';
+import CharacterInfo from '../Character/CharacterStats';
+import Inventory from '../Inventory/Inventory';
+import Skills from '../Skills/Skills';
+import CreateCharacter from '../Character/CreateCharacter';
+
+const Tab = ({ label, active, onClick }) => (
+  <button
+    className={`px-4 py-2 font-bold transition-colors duration-200 
+      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+      first:rounded-tl-lg last:rounded-tr-lg`}
+    onClick={onClick}
+  >
+    {label}
+  </button>
+);
+
+const TabContent = ({ children }) => (
+  <div className="bg-gray-100 rounded-b-lg rounded-tr-lg p-4">
+    {children}
+  </div>
+);
+
+const Dashboard = () => {
+  const [user, setUser] = useState(null);
+  const [character, setCharacter] = useState(null);
+  const [activeTab, setActiveTab] = useState('characteristics');
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    fetchUserData();
+  }, []);
+
+  const fetchUserData = async () => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      try {
+        console.log('Получение данных пользователя...');
+        const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        console.log('Данные пользователя получены:', userResponse.data);
+        setUser(userResponse.data);
+
+        if (userResponse.data.hasCharacter) {
+          console.log('Получение данных персонажа...');
+          const characterResponse = await axios.get('http://localhost:5000/api/character', {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+          console.log('Данные персонажа получены:', characterResponse.data);
+          setCharacter(characterResponse.data);
+        }
+      } catch (error) {
+        console.error('Ошибка получения данных:', error.response?.data || error.message);
+      } finally {
+        setLoading(false);
+      }
+    } else {
+      console.error('Токен не найден в localStorage');
+      setLoading(false);
+    }
+  };
+
+  const handleCharacterUpdate = (updatedCharacter) => {
+    setCharacter(updatedCharacter);
+  };
+
+  const handleEquipItem = async (itemId, slot) => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await axios.post('http://localhost:5000/api/character/equip', 
+        { itemId, slot },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setCharacter(response.data);
+    } catch (error) {
+      console.error('Ошибка экипировки предмета:', error);
+    }
+  };
+
+  const handleCharacterCreated = async (newCharacter) => {
+    setCharacter(newCharacter);
+    // Обновляем данные пользователя, чтобы отразить создание персонажа
+    const updatedUser = { ...user, hasCharacter: true };
+    setUser(updatedUser);
+    // Здесь можно также отправить запрос на сервер для обновления данных пользователя
+  };
+
+  if (loading) {
+    return <div className="text-center p-4">Загрузка...</div>;
+  }
+
+  if (!user) {
+    return <div className="text-center p-4">Необходима авторизация</div>;
+  }
+
+  if (!character) {
+    return (
+      <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+        <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
+        <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+      <Character character={character} />
+      
+      <div className="flex mt-4">
+        <Tab label="Характеристики" active={activeTab === 'characteristics'} onClick={() => setActiveTab('characteristics')} />
+        <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+        <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
+      </div>
+      <TabContent>
+        {activeTab === 'characteristics' && <CharacterInfo character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
+        {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
+        {activeTab === 'skills' && <Skills skills={character.skills || []} />}
+      </TabContent>
+    </div>
+  );
+};
+
+export default Dashboard;
+
+// Далее код файла components\Inventory\Inventory.js:
+import React, { useState } from 'react';
+
+const CategoryTab = ({ id, name, active, onClick }) => (
+  <button
+    className={`px-4 py-2 font-bold transition-colors duration-200 
+      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+      first:rounded-tl-lg last:rounded-tr-lg`}
+    onClick={() => onClick(id)}
+  >
+    {name}
+  </button>
+);
+
+const ItemSlot = ({ item, onEquipItem }) => (
+  <div
+    className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100"
+    onClick={() => item && onEquipItem(item.id, item.slot)}
+  >
+    {item && (
+      <>
+        <div className="font-bold mb-1 text-gray-800 truncate w-full">{item.name}</div>
+        <div className="text-gray-600">x{item.quantity}</div>
+      </>
+    )}
+  </div>
+);
+
+const Inventory = ({ inventory, onEquipItem }) => {
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const categories = [
+    { id: 'all', name: 'Все' },
+    { id: 'weapon', name: 'Оружие' },
+    { id: 'armor', name: 'Броня' },
+    { id: 'potion', name: 'Зелья' },
+    { id: 'misc', name: 'Предметы' },
+  ];
+
+  const filteredInventory = inventory.filter(item => 
+    activeCategory === 'all' || item.category === activeCategory
+  );
+
+  return (
+    <div>
+      <div className="flex mt-4">
+        {categories.map(category => (
+          <CategoryTab
+            key={category.id}
+            id={category.id}
+            name={category.name}
+            active={activeCategory === category.id}
+            onClick={setActiveCategory}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-7 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+        {filteredInventory.map((item, index) => (
+          <ItemSlot key={index} item={item} onEquipItem={onEquipItem} />
+        ))}
+        {[...Array(24 - filteredInventory.length)].map((_, index) => (
+          <ItemSlot key={`empty-${index}`} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default Inventory;
+
+// Далее код файла components\Skills\Skills.js:
+import React, { useState } from 'react';
+
+const CategoryTab = ({ id, name, active, onClick }) => (
+  <button
+    className={`px-4 py-2 font-bold transition-colors duration-200 
+      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+      first:rounded-tl-lg last:rounded-tr-lg`}
+    onClick={() => onClick(id)}
+  >
+    {name}
+  </button>
+);
+
+const SkillSlot = ({ skill }) => (
+  <div className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center">
+    {skill && (
+      <>
+        <div className="font-bold mb-1 text-gray-800 truncate w-full">{skill.name}</div>
+        <div className="text-gray-600">Ур. {skill.level}</div>
+      </>
+    )}
+  </div>
+);
+
+const Skills = ({ skills }) => {
+  const [activeCategory, setActiveCategory] = useState('all');
+
+  const categories = [
+    { id: 'all', name: 'Все' },
+    { id: 'attack', name: 'Атака' },
+    { id: 'defense', name: 'Защита' },
+    { id: 'healing', name: 'Лечение' },
+  ];
+
+  const filteredSkills = skills.filter(skill => 
+    activeCategory === 'all' || skill.category === activeCategory
+  );
+
+  return (
+    <div>
+      <div className="flex mt-4">
+        {categories.map(category => (
+          <CategoryTab
+            key={category.id}
+            id={category.id}
+            name={category.name}
+            active={activeCategory === category.id}
+            onClick={setActiveCategory}
+          />
+        ))}
+      </div>
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-7 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+        {filteredSkills.map((skill, index) => (
+          <SkillSlot key={index} skill={skill} />
+        ))}
+        {[...Array(24 - filteredSkills.length)].map((_, index) => (
+          <SkillSlot key={`empty-${index}`} />
+        ))}
+      </div>
+    </div>
+  );
+};
+
+export default Skills;
+
+// Далее код файла pages\DashboardPage.js:
+import React from 'react';
+import Dashboard from '../components/Dashboard/Dashboard';
+
+const DashboardPage = () => {
+  return (
+    <div>
+      <Dashboard />
+    </div>
+  );
+};
+
+export default DashboardPage;
+
+// Далее код файла pages\LoginPage.js:
+import React from 'react';
+import Login from '../components/Auth/Login';
+
+const LoginPage = () => {
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h1 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Я рад, что ты вернулся в игру!
+        </h1>
+      </div>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
+          <Login />
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default LoginPage;
+
+
+// Далее код файла pages\RegisterPage.js:
+import React from 'react';
+import Register from '../components/Auth/Register';
+
+const RegisterPage = () => {
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+      <div className="sm:mx-auto sm:w-full sm:max-w-md">
+        <h1 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
+          Ты здесь впервые, путник?
+        </h1>
+      </div>
+      <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+        <Register />
+      </div>
+    </div>
+  );
+};
+
+export default RegisterPage;
+
+

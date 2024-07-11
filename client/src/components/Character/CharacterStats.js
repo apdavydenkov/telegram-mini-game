@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar } from 'react-icons/fa';
+import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaPercent, FaBalanceScale } from 'react-icons/fa';
 
 const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
   const [updatedCharacter, setUpdatedCharacter] = useState(character);
@@ -10,53 +10,47 @@ const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
     setUpdatedCharacter(character);
   }, [character]);
 
-  const calculateDamage = () => updatedCharacter.strength * 10;
-  const calculateArmor = () => updatedCharacter.strength * 5;
-  const calculateCrit = () => (updatedCharacter.strength * 3) + (updatedCharacter.dexterity * 3);
-  const calculateDodge = () => (updatedCharacter.dexterity * 3) + (updatedCharacter.intelligence * 3);
-  const calculateHealthRegen = () => 1 + (updatedCharacter.intelligence * 0.05);
+  const handleStatIncrease = async (stat) => {
+    if (updatedCharacter.finalDistribution) return;
 
-	const handleStatIncrease = async (stat) => {
-	  if (updatedCharacter.finalDistribution) return;
+    const token = localStorage.getItem('token');
 
-	  const token = localStorage.getItem('token');  // Перемещаем это сюда
+    if (updatedCharacter.availablePoints > 0) {
+      const newCharacter = {
+        ...updatedCharacter,
+        [stat]: updatedCharacter[stat] + 1,
+        availablePoints: updatedCharacter.availablePoints - 1
+      };
 
-	  if (updatedCharacter.availablePoints > 0) {
-		const newCharacter = {
-		  ...updatedCharacter,
-		  [stat]: updatedCharacter[stat] + 1,
-		  availablePoints: updatedCharacter.availablePoints - 1
-		};
-
-		try {
-		  const response = await axios.put('http://localhost:5000/api/character', 
-			{ ...newCharacter, version: updatedCharacter.version },
-			{ headers: { Authorization: `Bearer ${token}` } }
-		  );
-		  setUpdatedCharacter(response.data);
-		  onCharacterUpdate(response.data);
-		  setError(null);
-		} catch (error) {
-		  if (error.response && error.response.status === 409) {
-			// Конфликт версий, получаем актуальные данные и пробуем снова
-			try {
-			  const refreshResponse = await axios.get('http://localhost:5000/api/character', {
-				headers: { Authorization: `Bearer ${token}` }
-			  });
-			  setUpdatedCharacter(refreshResponse.data);
-			  onCharacterUpdate(refreshResponse.data);
-			  setError('Данные были обновлены. Пожалуйста, попробуйте снова.');
-			} catch (refreshError) {
-			  console.error('Ошибка обновления данных:', refreshError);
-			  setError('Не удалось обновить данные. Пожалуйста, обновите страницу.');
-			}
-		  } else {
-			console.error('Ошибка обновления характеристик:', error);
-			setError('Не удалось обновить характеристики. Попробуйте еще раз.');
-		  }
-		}
-	  }
-	};
+      try {
+        const response = await axios.put('http://localhost:5000/api/character',
+          { ...newCharacter, version: updatedCharacter.version },
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        setUpdatedCharacter(response.data);
+        onCharacterUpdate(response.data);
+        setError(null);
+      } catch (error) {
+        if (error.response && error.response.status === 409) {
+          // Конфликт версий, получаем актуальные данные и пробуем снова
+          try {
+            const refreshResponse = await axios.get('http://localhost:5000/api/character', {
+              headers: { Authorization: `Bearer ${token}` }
+            });
+            setUpdatedCharacter(refreshResponse.data);
+            onCharacterUpdate(refreshResponse.data);
+            setError('Данные были обновлены. Пожалуйста, попробуйте снова.');
+          } catch (refreshError) {
+            console.error('Ошибка обновления данных:', refreshError);
+            setError('Не удалось обновить данные. Пожалуйста, обновите страницу.');
+          }
+        } else {
+          console.error('Ошибка обновления характеристик:', error);
+          setError('Не удалось обновить характеристики. Попробуйте еще раз.');
+        }
+      }
+    }
+  };
 
   const StatItem = ({ icon: Icon, label, value, stat, isAdjustable = true }) => (
     <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
@@ -67,8 +61,8 @@ const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
       <div className="flex items-center">
         <span className="font-semibold text-blue-600 mx-2">{value}</span>
         {isAdjustable && !updatedCharacter.finalDistribution && (
-          <button 
-            onClick={() => handleStatIncrease(stat)} 
+          <button
+            onClick={() => handleStatIncrease(stat)}
             disabled={updatedCharacter.availablePoints <= 0}
             className="w-6 h-6 bg-green-500 text-white rounded disabled:bg-gray-300"
           >
@@ -89,8 +83,9 @@ const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
         <StatItem icon={FaBrain} label="Интеллект" value={updatedCharacter.intelligence} stat="intelligence" />
         <StatItem icon={FaHeart} label="Выносливость" value={updatedCharacter.endurance} stat="endurance" />
         <StatItem icon={FaSmile} label="Харизма" value={updatedCharacter.charisma} stat="charisma" />
+        <StatItem icon={FaHeart} label="Здоровье" value={updatedCharacter.health} isAdjustable={false} />
         {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
-          <div className="mt-2 p-2 bg-yellow-300 rounded-lg shadow-sm flex items-center text-lg font-semibold text-red-600 animate-pulse">
+          <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
             Доступные навыки: {updatedCharacter.availablePoints}
           </div>
@@ -98,11 +93,13 @@ const CharacterInfo = ({ character, onCharacterUpdate, showDetailedStats }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatItem icon={FaFistRaised} label="Урон" value={calculateDamage()} isAdjustable={false} />
-        <StatItem icon={FaShieldAlt} label="Броня" value={calculateArmor()} isAdjustable={false} />
-        <StatItem icon={FaBullseye} label="Крит" value={calculateCrit()} isAdjustable={false} />
-        <StatItem icon={FaWind} label="Уворот" value={calculateDodge()} isAdjustable={false} />
-        <StatItem icon={FaHeartbeat} label="Реген" value={`${calculateHealthRegen().toFixed(2)}/сек`} isAdjustable={false} />
+        <StatItem icon={FaFistRaised} label="Урон" value={updatedCharacter.damage} isAdjustable={false} />
+        <StatItem icon={FaShieldAlt} label="Броня" value={updatedCharacter.armor} isAdjustable={false} />
+        <StatItem icon={FaBullseye} label="Шанс крита" value={`${updatedCharacter.criticalChance.toFixed(2)}%`} isAdjustable={false} />
+        <StatItem icon={FaBolt} label="Сила крита" value={`${updatedCharacter.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
+        <StatItem icon={FaWind} label="Уворот" value={`${updatedCharacter.dodge.toFixed(2)}%`} isAdjustable={false} />
+        <StatItem icon={FaBalanceScale} label="Контрудар" value={`${updatedCharacter.counterAttack.toFixed(2)}%`} isAdjustable={false} />
+        <StatItem icon={FaHeartbeat} label="Реген здоровья" value={`${updatedCharacter.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
       </div>
     </div>
   );

@@ -4,28 +4,45 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000';
 
+const InputField = ({ label, name, value, onChange, type = 'text' }) => (
+  <div className="flex justify-between items-center mb-2">
+    <label className="text-right pr-2 w-1/2">{label}:</label>
+    <input
+      type={type}
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-1/2 h-[25px] px-2 border rounded text-right"
+    />
+  </div>
+);
+
+const SelectField = ({ label, name, value, onChange, options }) => (
+  <div className="flex justify-between items-center mb-2">
+    <label className="text-right pr-2 w-1/2">{label}:</label>
+    <select
+      name={name}
+      value={value}
+      onChange={onChange}
+      className="w-1/2 h-[25px] px-2 border rounded text-right"
+    >
+      {options.map(option => (
+        <option key={option} value={option}>{option}</option>
+      ))}
+    </select>
+  </div>
+);
+
 const EquipmentForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState({
-    name: '',
-    type: '',
+    name: '', type: '', rarity: '', minLevel: 1, image: '',
     stats: {
-      strength: 0,
-      dexterity: 0,
-      intelligence: 0,
-      endurance: 0,
-      charisma: 0,
-      health: 0,
-      attack: 0,
-      defense: 0,
-      dodge: 0,
-      criticalChance: 0,
-      criticalDamage: 0
-    },
-    rarity: '',
-    minLevel: 1,
-    description: ''
+      strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
+      damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,
+      healthRegen: 0, health: 0, counterAttack: 0
+    }
   });
 
   useEffect(() => {
@@ -42,12 +59,7 @@ const EquipmentForm = () => {
       });
       setEquipment(response.data);
     } catch (error) {
-      console.error('Error fetching equipment:', error.response?.data || error.message);
-      // Можно добавить обработку ошибки аутентификации
-      if (error.response && error.response.status === 401) {
-        // Например, перенаправление на страницу входа
-        // navigate('/login');
-      }
+      console.error('Ошибка получения предмета:', error.response?.data || error.message);
     }
   };
 
@@ -60,7 +72,7 @@ const EquipmentForm = () => {
     const { name, value } = e.target;
     setEquipment(prev => ({
       ...prev,
-      stats: { ...prev.stats, [name]: parseInt(value) }
+      stats: { ...prev.stats, [name]: parseFloat(value) }
     }));
   };
 
@@ -79,113 +91,59 @@ const EquipmentForm = () => {
       }
       navigate('/admin/equipment');
     } catch (error) {
-      console.error('Error saving equipment:', error.response?.data || error.message);
-      // Обработка ошибки аутентификации
-      if (error.response && error.response.status === 401) {
-        // Например, перенаправление на страницу входа
-        // navigate('/login');
-      }
+      console.error('Ошибка сохранения предмета:', error.response?.data || error.message);
     }
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div>
-        <label className="block mb-1">Name:</label>
-        <input
-          type="text"
-          name="name"
-          value={equipment.name}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block mb-1">Type:</label>
-        <select
-          name="type"
-          value={equipment.type}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-          required
-        >
-          <option value="">Select Type</option>
-          <option value="weapon">Weapon</option>
-          <option value="armor">Armor</option>
-          <option value="accessory">Accessory</option>
-          <option value="banner">Banner</option>
-          <option value="helmet">Helmet</option>
-          <option value="shield">Shield</option>
-          <option value="cloak">Cloak</option>
-          <option value="belt">Belt</option>
-          <option value="boots">Boots</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block mb-1">Stats:</label>
-        {Object.entries(equipment.stats).map(([stat, value]) => (
-          <div key={stat} className="flex items-center space-x-2 mb-2">
-            <label>{stat}:</label>
-            <input
-              type="number"
-              name={stat}
-              value={value}
-              onChange={handleStatsChange}
-              className="w-20 px-2 py-1 border rounded"
+    <div className="container mx-auto px-4">
+      <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
+        <h2 className="text-2xl font-bold mb-4">Создание предметов - Экипировка</h2>
+        <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-4">
+          <div>
+            <InputField label="Название" name="name" value={equipment.name} onChange={handleChange} />
+            <SelectField 
+              label="Тип" 
+              name="type" 
+              value={equipment.type} 
+              onChange={handleChange}
+              options={['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots']}
             />
+            <SelectField 
+              label="Редкость" 
+              name="rarity" 
+              value={equipment.rarity} 
+              onChange={handleChange}
+              options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
+            />
+            <InputField label="Мин. уровень" name="minLevel" value={equipment.minLevel} onChange={handleChange} type="number" />
+            <InputField label="Изображение" name="image" value={equipment.image} onChange={handleChange} />
           </div>
-        ))}
+          <div>
+            <InputField label="Сила" name="strength" value={equipment.stats.strength} onChange={handleStatsChange} type="number" />
+            <InputField label="Ловкость" name="dexterity" value={equipment.stats.dexterity} onChange={handleStatsChange} type="number" />
+            <InputField label="Интеллект" name="intelligence" value={equipment.stats.intelligence} onChange={handleStatsChange} type="number" />
+            <InputField label="Выносливость" name="endurance" value={equipment.stats.endurance} onChange={handleStatsChange} type="number" />
+            <InputField label="Харизма" name="charisma" value={equipment.stats.charisma} onChange={handleStatsChange} type="number" />
+          </div>
+          <div>
+            <InputField label="Урон" name="damage" value={equipment.stats.damage} onChange={handleStatsChange} type="number" />
+            <InputField label="Броня" name="armor" value={equipment.stats.armor} onChange={handleStatsChange} type="number" />
+            <InputField label="Шанс крита" name="criticalChance" value={equipment.stats.criticalChance} onChange={handleStatsChange} type="number" />
+            <InputField label="Сила крита" name="criticalDamage" value={equipment.stats.criticalDamage} onChange={handleStatsChange} type="number" />
+            <InputField label="Уворот" name="dodge" value={equipment.stats.dodge} onChange={handleStatsChange} type="number" />
+            <InputField label="Контрудар" name="counterAttack" value={equipment.stats.counterAttack} onChange={handleStatsChange} type="number" />
+            <InputField label="HP" name="health" value={equipment.stats.health} onChange={handleStatsChange} type="number" />
+            <InputField label="Реген" name="healthRegen" value={equipment.stats.healthRegen} onChange={handleStatsChange} type="number" />
+          </div>
+          <div className="col-span-3 mt-4">
+            <button type="submit" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
+              {id ? 'Обновить предмет' : 'Создать предмет'}
+            </button>
+          </div>
+        </form>
       </div>
-
-      <div>
-        <label className="block mb-1">Rarity:</label>
-        <select
-          name="rarity"
-          value={equipment.rarity}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-          required
-        >
-          <option value="">Select Rarity</option>
-          <option value="common">Common</option>
-          <option value="uncommon">Uncommon</option>
-          <option value="rare">Rare</option>
-          <option value="epic">Epic</option>
-          <option value="legendary">Legendary</option>
-        </select>
-      </div>
-
-      <div>
-        <label className="block mb-1">Minimum Level:</label>
-        <input
-          type="number"
-          name="minLevel"
-          value={equipment.minLevel}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-          min="1"
-          required
-        />
-      </div>
-
-      <div>
-        <label className="block mb-1">Description:</label>
-        <textarea
-          name="description"
-          value={equipment.description}
-          onChange={handleChange}
-          className="w-full px-3 py-2 border rounded"
-          rows="3"
-        ></textarea>
-      </div>
-
-      <button type="submit" className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600">
-        {id ? 'Update Equipment' : 'Create Equipment'}
-      </button>
-    </form>
+    </div>
   );
 };
 
