@@ -1,8 +1,8 @@
 import React from 'react';
 
 const Character = ({ character }) => {
-  const expPercentage = character.experience ? (character.experience / 100) * 100 : 0;
-  const healthPercentage = character.maxHealth ? (character.health / character.maxHealth) * 100 : 0;
+//  const expPercentage = character.experience ? (character.experience / 100) * 100 : 0;
+//  const healthPercentage = character.maxHealth ? (character.health / character.maxHealth) * 100 : 0;
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">

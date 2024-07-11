@@ -76,12 +76,12 @@ exports.login = async (req, res) => {
         id: user._id,
         username: user.username,
         email: user.email,
+        role: user.role,
         hasCharacter: user.hasCharacter
       }
     });
   } catch (error) {
-    console.error('Ошибка входа:', error);
-    res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+    res.status(400).json({ message: 'Error logging in', error: error.message });
   }
 };
 
@@ -92,10 +92,36 @@ exports.getMe = async (req, res) => {
       id: user._id,
       username: user.username,
       email: user.email,
+      role: user.role,
       hasCharacter: user.hasCharacter
     });
   } catch (error) {
     console.error('Ошибка при получении данных пользователя:', error);
     res.status(500).json({ message: 'Ошибка сервера', error: error.message });
+  }
+};
+
+exports.makeAdmin = async (req, res) => {
+  try {
+    const user = await User.findById(req.user.id);
+    if (!user) {
+      return res.status(404).json({ message: 'User not found' });
+    }
+    user.role = 'admin';
+    await user.save();
+    
+    res.json({
+      message: 'User role updated to admin',
+      user: {
+        id: user._id,
+        username: user.username,
+        email: user.email,
+        role: user.role,
+        hasCharacter: user.hasCharacter
+      }
+    });
+  } catch (error) {
+    console.error('Error updating user role:', error);
+    res.status(500).json({ message: 'Server error', error: error.message });
   }
 };

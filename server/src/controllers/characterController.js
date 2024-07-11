@@ -57,7 +57,7 @@ exports.getCharacter = async (req, res) => {
 
 exports.updateCharacter = async (req, res) => {
   try {
-    const { strength, dexterity, intelligence, endurance, charisma, availablePoints, version } = req.body;
+    const { strength, dexterity, intelligence, endurance, charisma, version } = req.body;
     
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
@@ -74,20 +74,27 @@ exports.updateCharacter = async (req, res) => {
 
     const newTotalStats = strength + dexterity + intelligence + endurance + charisma;
     const oldTotalStats = character.strength + character.dexterity + character.intelligence + character.endurance + character.charisma;
-    const maxAllowedIncrease = character.availablePoints;
+    const pointsSpent = newTotalStats - oldTotalStats;
 
-    if (newTotalStats < oldTotalStats || newTotalStats > oldTotalStats + maxAllowedIncrease) {
+    if (pointsSpent > character.availablePoints || pointsSpent < 0) {
       return res.status(400).json({ message: 'Недопустимое распределение очков' });
     }
+
+    // Проверяем каждую характеристику отдельно
+    if (strength < character.strength || strength > character.strength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
+    if (dexterity < character.dexterity || dexterity > character.dexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
+    if (intelligence < character.intelligence || intelligence > character.intelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
+    if (endurance < character.endurance || endurance > character.endurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
+    if (charisma < character.charisma || charisma > character.charisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
 
     character.strength = strength;
     character.dexterity = dexterity;
     character.intelligence = intelligence;
     character.endurance = endurance;
     character.charisma = charisma;
-    character.availablePoints = availablePoints;
+    character.availablePoints -= pointsSpent;
 
-    if (availablePoints === 0) {
+    if (character.availablePoints === 0) {
       character.finalDistribution = true;
     }
 
