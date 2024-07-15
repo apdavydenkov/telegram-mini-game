@@ -49,7 +49,7 @@ const Skills = ({ skills }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-7 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredSkills.map((skill, index) => (
           <SkillSlot key={index} skill={skill} />
         ))}

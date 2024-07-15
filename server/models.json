@@ -1,0 +1,417 @@
+{
+    "User": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439011"
+        },
+        "username": {
+            "type": "String",
+            "example": "johndoe"
+        },
+        "email": {
+            "type": "String",
+            "example": "john@example.com"
+        },
+        "password": {
+            "type": "String",
+            "example": "hashed_password"
+        },
+        "role": {
+            "type": "String",
+            "enum": [
+                "player",
+                "moderator",
+                "admin"
+            ],
+            "example": "player"
+        },
+        "createdAt": {
+            "type": "Date",
+            "example": "2023-04-01T10:00:00Z"
+        }
+    },
+
+    "Character": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439012"
+        },
+        "user": {
+            "type": "ObjectId",
+            "ref": "User",
+            "example": "507f1f77bcf86cd799439011"
+        },
+        "nickname": {
+            "type": "String",
+            "example": "Mighty Warrior"
+        },
+        "class": {
+            "type": "String",
+            "enum": [
+                "warrior",
+                "mage",
+                "archer"
+            ],
+            "example": "warrior"
+        },
+        "level": {
+            "type": "Number",
+            "example": 10
+        },
+        "experience": {
+            "type": "Number",
+            "example": 5000
+        },
+        "baseStrength": {
+            "type": "Number",
+            "example": 15
+        },
+        "baseDexterity": {
+            "type": "Number",
+            "example": 12
+        },
+        "baseIntelligence": {
+            "type": "Number",
+            "example": 8
+        },
+        "baseEndurance": {
+            "type": "Number",
+            "example": 14
+        },
+        "baseCharisma": {
+            "type": "Number",
+            "example": 10
+        },
+        "availablePoints": {
+            "type": "Number",
+            "example": 5
+        },
+        "gold": {
+            "type": "Number",
+            "example": 1000
+        },
+        "status": {
+            "type": "String",
+            "enum": [
+                "idle",
+                "in_battle",
+                "resting"
+            ],
+            "example": "idle"
+        },
+        "maxSkillSlots": {
+            "type": "Number",
+            "default": 6
+        },
+        "calculatedStats": {
+            "type": "Object",
+            "virtual": true,
+            "source": "Рассчитывается на основе базовых характеристик, экипировки и навыков",
+            "example": {
+                "strength": 17,
+                "dexterity": 13,
+                "intelligence": 8,
+                "endurance": 15,
+                "charisma": 10,
+                "health": 150,
+                "maxHealth": 150,
+                "damage": 34,
+                "armor": 15,
+                "critChance": 6.5,
+                "critPower": 167,
+                "dodge": 2.6,
+                "counterAttack": 6.5,
+                "healthRegen": 1.5
+            }
+        }
+    },
+
+    "Inventory": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439013"
+        },
+        "character": {
+            "type": "ObjectId",
+            "ref": "Character",
+            "example": "507f1f77bcf86cd799439012"
+        },
+        "capacity": {
+            "type": "Number",
+            "example": 50
+        }
+    },
+
+    "CharItem": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439014"
+        },
+        "inventory": {
+            "type": "ObjectId",
+            "ref": "Inventory",
+            "example": "507f1f77bcf86cd799439013"
+        },
+        "gameItem": {
+            "type": "ObjectId",
+            "ref": "GameItem",
+            "example": "507f1f77bcf86cd799439015"
+        },
+        "quantity": {
+            "type": "Number",
+            "example": 1
+        },
+        "currentDurability": {
+            "type": "Number",
+            "example": 90
+        },
+        "maxDurability": {
+            "type": "Number",
+            "virtual": true,
+            "source": "Берется из соответствующего GameItem",
+            "example": 100
+        }
+    },
+
+    "GameItem": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439015"
+        },
+        "name": {
+            "type": "String",
+            "example": "Sword of Power"
+        },
+        "description": {
+            "type": "String",
+            "example": "A mighty sword that grants its wielder immense power."
+        },
+        "type": {
+            "type": "String",
+            "enum": [
+                "weapon",
+                "armor",
+                "consumable",
+                "quest"
+            ],
+            "example": "weapon"
+        },
+        "category": {
+            "type": "String",
+            "enum": [
+                "melee",
+                "ranged",
+                "magic",
+                "light",
+                "heavy"
+            ],
+            "example": "melee"
+        },
+        "slot": {
+            "type": "String",
+            "enum": [
+                "weapon",
+                "shield",
+                "helmet",
+                "armor",
+                "boots",
+                "ring",
+                "amulet",
+                "cloak",
+                "belt",
+                "banner"
+            ],
+            "example": "weapon"
+        },
+        "baseStats": {
+            "type": "Object",
+            "example": {
+                "damage": 15,
+                "speed": 1.2,
+                "critChance": 5
+            }
+        },
+        "rarity": {
+            "type": "String",
+            "enum": [
+                "common",
+                "uncommon",
+                "rare",
+                "epic",
+                "legendary"
+            ],
+            "example": "rare"
+        },
+        "minLevel": {
+            "type": "Number",
+            "example": 5
+        },
+        "buyPrice": {
+            "type": "Number",
+            "example": 1000
+        },
+        "sellPrice": {
+            "type": "Number",
+            "example": 500
+        },
+        "isStackable": {
+            "type": "Boolean",
+            "example": false
+        },
+        "imageUrl": {
+            "type": "String",
+            "example": "/images/items/sword_of_power.png"
+        },
+        "maxDurability": {
+            "type": "Number",
+            "example": 100
+        },
+        "effects": {
+            "type": "Array",
+            "example": [
+                {
+                    "type": "buff",
+                    "stat": "strength",
+                    "value": 5,
+                    "duration": 300
+                }
+            ]
+        }
+    },
+
+    "Equipment": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439016"
+        },
+        "character": {
+            "type": "ObjectId",
+            "ref": "Character",
+            "example": "507f1f77bcf86cd799439012"
+        },
+        "equippedItems": {
+            "type": "Object",
+            "example": {
+                "weapon": "507f1f77bcf86cd799439017",
+                "shield": "507f1f77bcf86cd799439018",
+                "helmet": "507f1f77bcf86cd799439019",
+                "armor": "507f1f77bcf86cd799439020",
+                "boots": "507f1f77bcf86cd799439021",
+                "ring1": "507f1f77bcf86cd799439022",
+                "ring2": "507f1f77bcf86cd799439023",
+                "amulet": "507f1f77bcf86cd799439024",
+                "cloak": "507f1f77bcf86cd799439025",
+                "belt": "507f1f77bcf86cd799439026",
+                "banner": "507f1f77bcf86cd799439027",
+                "useSlot1": "507f1f77bcf86cd799439031",
+                "useSlot2": "507f1f77bcf86cd799439032",
+                "useSlot3": "507f1f77bcf86cd799439033"
+            }
+        }
+    },
+    
+    "GameSkill": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439033"
+        },
+        "name": {
+            "type": "String",
+            "example": "Fireball"
+        },
+        "description": {
+            "type": "String",
+            "example": "Launches a ball of fire at the enemy."
+        },
+        "type": {
+            "type": "String",
+            "enum": [
+                "active",
+                "passive"
+            ],
+            "example": "active"
+        },
+        "category": {
+            "type": "String",
+            "enum": [
+                "attack",
+                "defense",
+                "support",
+                "utility"
+            ],
+            "example": "attack"
+        },
+        "maxLevel": {
+            "type": "Number",
+            "example": 5
+        },
+        "baseCost": {
+            "type": "Number",
+            "example": 20
+        },
+        "baseEffect": {
+            "type": "Object",
+            "example": {
+                "damage": 50,
+                "burnChance": 0.2
+            }
+        },
+        "requirements": {
+            "type": "Object",
+            "example": {
+                "level": 3,
+                "intelligence": 10
+            }
+        },
+        "cooldown": {
+            "type": "Number",
+            "example": 30
+        },
+        "imageUrl": {
+            "type": "String",
+            "example": "/images/skills/fireball.png"
+        }
+    },
+
+    "CharSkill": {
+        "_id": {
+            "type": "ObjectId",
+            "example": "507f1f77bcf86cd799439034"
+        },
+        "character": {
+            "type": "ObjectId",
+            "ref": "Character",
+            "example": "507f1f77bcf86cd799439012"
+        },
+        "gameSkill": {
+            "type": "ObjectId",
+            "ref": "GameSkill",
+            "example": "507f1f77bcf86cd799439033"
+        },
+        "level": {
+            "type": "Number",
+            "example": 3
+        },
+        "skillSlot": {
+            "type": "Number",
+            "min": 1,
+            "max": 6,
+            "default": null
+        },
+        "currentCost": {
+            "type": "Number",
+            "virtual": true,
+            "source": "Рассчитывается на основе GameSkill.baseCost и модификаторов персонажа",
+            "example": 25
+        },
+        "currentEffect": {
+            "type": "Object",
+            "virtual": true,
+            "source": "Рассчитывается на основе GameSkill.baseEffect, уровня навыка и модификаторов персонажа",
+            "example": {
+                "damage": 75,
+                "burnChance": 0.3
+            }
+        }
+    }
+}

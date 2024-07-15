@@ -1,7 +1,7 @@
 import React from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
-import EquipmentList from './EquipmentList';
-import EquipmentForm from './EquipmentForm';
+import AdminEquipmentList from './AdminEquipmentList';
+import AdminEquipmentForm from './AdminEquipmentForm';
 
 const AdminPanel = () => {
   return (
@@ -19,9 +19,9 @@ const AdminPanel = () => {
       </aside>
       <main className="flex-1 p-8">
         <Routes>
-          <Route path="equipment" element={<EquipmentList />} />
-          <Route path="equipment/new" element={<EquipmentForm />} />
-          <Route path="equipment/edit/:id" element={<EquipmentForm />} />
+          <Route path="equipment" element={<AdminEquipmentList />} />
+          <Route path="equipment/new" element={<AdminEquipmentForm />} />
+          <Route path="equipment/edit/:id" element={<AdminEquipmentForm />} />
         </Routes>
       </main>
     </div>

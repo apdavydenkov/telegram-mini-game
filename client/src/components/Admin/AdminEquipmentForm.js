@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
-
-const API_BASE_URL = 'http://localhost:5000';
+import { APP_SERVER_URL } from '../../config/config';
 
 const InputField = ({ label, name, value, onChange, type = 'text' }) => (
   <div className="flex justify-between items-center mb-2">
@@ -33,7 +32,7 @@ const SelectField = ({ label, name, value, onChange, options }) => (
   </div>
 );
 
-const EquipmentForm = () => {
+const AdminEquipmentForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [equipment, setEquipment] = useState({
@@ -54,12 +53,27 @@ const EquipmentForm = () => {
   const fetchEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/api/equipment/${id}`, {
+      if (!token) {
+        console.log('Токен отсутствует. Перенаправление на страницу входа.');
+        navigate('/login');
+        return;
+      }
+      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEquipment(response.data);
     } catch (error) {
       console.error('Ошибка получения предмета:', error.response?.data || error.message);
+
+      // Проверяем, является ли ошибка связанной с аутентификацией
+      if (error.response && error.response.status === 401) {
+        console.log('Токен недействителен. Перенаправление на страницу входа.');
+        localStorage.removeItem('token'); // Удаляем недействительный токен
+        navigate('/login'); // Перенаправляем на страницу входа
+      } else {
+        // Обработка других типов ошибок
+        // Например, можно показать пользователю сообщение об ошибке
+      }
     }
   };
 
@@ -81,11 +95,11 @@ const EquipmentForm = () => {
     try {
       const token = localStorage.getItem('token');
       if (id) {
-        await axios.put(`${API_BASE_URL}/api/equipment/${id}`, equipment, {
+        await axios.put(`${APP_SERVER_URL}/api/equipment/${id}`, equipment, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post(`${API_BASE_URL}/api/equipment`, equipment, {
+        await axios.post(`${APP_SERVER_URL}/api/equipment`, equipment, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
@@ -102,17 +116,17 @@ const EquipmentForm = () => {
         <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-4">
           <div>
             <InputField label="Название" name="name" value={equipment.name} onChange={handleChange} />
-            <SelectField 
-              label="Тип" 
-              name="type" 
-              value={equipment.type} 
+            <SelectField
+              label="Тип"
+              name="type"
+              value={equipment.type}
               onChange={handleChange}
               options={['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots']}
             />
-            <SelectField 
-              label="Редкость" 
-              name="rarity" 
-              value={equipment.rarity} 
+            <SelectField
+              label="Редкость"
+              name="rarity"
+              value={equipment.rarity}
               onChange={handleChange}
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
@@ -147,4 +161,4 @@ const EquipmentForm = () => {
   );
 };
 
-export default EquipmentForm;
+export default AdminEquipmentForm;

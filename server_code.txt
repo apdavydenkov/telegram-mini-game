@@ -360,6 +360,7 @@ exports.equipItem = async (req, res) => {
 // Далее код файла controllers\equipmentController.js:
 // controllers/equipmentController.js
 const Equipment = require('../models/Equipment');
+const Character = require('../models/Character');
 
 exports.createEquipment = async (req, res) => {
   try {
@@ -413,6 +414,30 @@ exports.deleteEquipment = async (req, res) => {
     res.json({ message: 'Equipment deleted successfully' });
   } catch (error) {
     res.status(400).json({ message: 'Error deleting equipment', error: error.message });
+  }
+};
+
+exports.sendEquipmentById = async (req, res) => {
+  try {
+    const { equipmentId, characterId } = req.params;
+
+    const equipment = await Equipment.findById(equipmentId);
+    if (!equipment) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+    
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return res.status(404).json({ message: 'Character not found' });
+    }
+    
+    // Добавляем оборудование к персонажу
+    character.inventory.push(equipment._id);
+    await character.save();
+    
+    res.json({ message: 'Equipment sent to character successfully', character });
+  } catch (error) {
+    res.status(400).json({ message: 'Error sending equipment', error: error.message });
   }
 };
 
@@ -492,76 +517,82 @@ const characterSchema = new mongoose.Schema({
     enum: ['Warrior', 'Mage', 'Archer'],
     required: true
   },
-  level: {
-    type: Number,
-    default: 1
-  },
-  experience: {
-    type: Number,
-    default: 0
-  },
-  health: {
-    type: Number,
-    default: 100
-  },
-  maxHealth: {
-    type: Number,
-    default: 100
-  },
-  strength: {
-    type: Number,
-    default: 10
-  },
-  dexterity: {
-    type: Number,
-    default: 10
-  },
-  intelligence: {
-    type: Number,
-    default: 10
-  },
-  endurance: {
-    type: Number,
-    default: 10
-  },
-  charisma: {
-    type: Number,
-    default: 10
-  },
-  availablePoints: {
-    type: Number,
-    default: 5
-  },
-  finalDistribution: {
-    type: Boolean,
-    default: false
-  },
+  level: { type: Number, default: 1 },
+  experience: { type: Number, default: 0 },
+  // Базовые характеристики
+  strength: { type: Number, default: 10 },
+  dexterity: { type: Number, default: 10 },
+  intelligence: { type: Number, default: 10 },
+  endurance: { type: Number, default: 10 },
+  charisma: { type: Number, default: 10 },
+  // Расчетные характеристики (будут вычисляться)
+  damage: { type: Number, default: 0 },
+  armor: { type: Number, default: 0 },
+  criticalChance: { type: Number, default: 0 },
+  criticalDamage: { type: Number, default: 0 },
+  dodge: { type: Number, default: 0 },
+  healthRegen: { type: Number, default: 0 },
+  health: { type: Number, default: 100 },
+  counterAttack: { type: Number, default: 0 },
+  // Очки характеристик
+  availablePoints: { type: Number, default: 5 },
+  finalDistribution: { type: Boolean, default: false },
+  // Инвентарь
   inventory: [{
     item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
     quantity: { type: Number, default: 1 }
   }],
+  // Экипировка
   equipment: {
-    hand: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-    body: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-    head: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-    feet: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
-    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' }
+    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
+    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' }
   },
-  version: {
-    type: Number,
-    default: 0
-  }
+  version: { type: Number, default: 0 }
 }, { timestamps: true });
+
+// Функция для пересчета характеристик
+characterSchema.methods.recalculateStats = function() {
+  // Базовые значения
+  this.damage = this.strength * 2;
+  this.armor = this.endurance;
+  this.criticalChance = this.dexterity * 0.1;
+  this.criticalDamage = 150 + this.strength;
+  this.dodge = this.dexterity * 0.2;
+  this.healthRegen = this.endurance * 0.1;
+  this.health = 100 + (this.endurance * 10);
+  this.counterAttack = this.dexterity * 0.5;
+
+  // Добавление бонусов от экипировки
+  Object.values(this.equipment).forEach(item => {
+    if (item && item.stats) {
+      this.damage += item.stats.damage || 0;
+      this.armor += item.stats.armor || 0;
+      this.criticalChance += item.stats.criticalChance || 0;
+      this.criticalDamage += item.stats.criticalDamage || 0;
+      this.dodge += item.stats.dodge || 0;
+      this.healthRegen += item.stats.healthRegen || 0;
+      this.health += item.stats.health || 0;
+      this.counterAttack += item.stats.counterAttack || 0;
+    }
+  });
+};
 
 characterSchema.pre('save', function(next) {
   this.version += 1;
+  this.recalculateStats();
   next();
 });
 
 module.exports = mongoose.model('Character', characterSchema);
 
 // Далее код файла models\Equipment.js:
-// models/Equipment.js
 const mongoose = require('mongoose');
 
 const equipmentSchema = new mongoose.Schema({
@@ -571,27 +602,29 @@ const equipmentSchema = new mongoose.Schema({
     enum: ['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots'], 
     required: true 
   },
-  stats: {
-    strength: { type: Number, default: 0 },
-    dexterity: { type: Number, default: 0 },
-    intelligence: { type: Number, default: 0 },
-    endurance: { type: Number, default: 0 },
-    charisma: { type: Number, default: 0 },
-    health: { type: Number, default: 0 },
-    attack: { type: Number, default: 0 },
-    defense: { type: Number, default: 0 },
-    dodge: { type: Number, default: 0 },
-    criticalChance: { type: Number, default: 0 },
-    criticalDamage: { type: Number, default: 0 }
-  },
   rarity: {
     type: String,
     enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'],
     default: 'common'
   },
   minLevel: { type: Number, default: 1 },
-  description: { type: String }
-}, { timestamps: true });
+  image: { type: String, default: '' },
+  stats: {
+    strength: { type: Number, default: 0 },
+    dexterity: { type: Number, default: 0 },
+    intelligence: { type: Number, default: 0 },
+    endurance: { type: Number, default: 0 },
+    charisma: { type: Number, default: 0 },
+    damage: { type: Number, default: 0 },
+    armor: { type: Number, default: 0 },
+    criticalChance: { type: Number, default: 0 },
+    criticalDamage: { type: Number, default: 0 },
+    dodge: { type: Number, default: 0 },
+    healthRegen: { type: Number, default: 0 },
+    health: { type: Number, default: 0 },
+    counterAttack: { type: Number, default: 0 }
+  }
+});
 
 module.exports = mongoose.model('Equipment', equipmentSchema);
 
@@ -697,7 +730,8 @@ const {
   getAllEquipment, 
   getEquipmentById, 
   updateEquipment, 
-  deleteEquipment 
+  deleteEquipment,
+  sendEquipmentById
 } = require('../controllers/equipmentController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminMiddleware = require('../middlewares/adminMiddleware');
@@ -707,6 +741,7 @@ router.get('/', authMiddleware, getAllEquipment);
 router.get('/:id', authMiddleware, getEquipmentById);
 router.put('/:id', authMiddleware, adminMiddleware, updateEquipment);
 router.delete('/:id', authMiddleware, adminMiddleware, deleteEquipment);
+router.post('/send/:equipmentId/:characterId', authMiddleware, adminMiddleware, sendEquipmentById);
 
 module.exports = router;
 

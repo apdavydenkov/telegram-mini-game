@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
 import axios from 'axios';
+import { APP_SERVER_URL } from '../../config/config';
 
-const CreateCharacter = ({ onCharacterCreated }) => {
+const CharacterCreate = ({ onCharacterCreated }) => {
   const [name, setName] = useState('');
   const [characterClass, setCharacterClass] = useState('Warrior');
   const [strength, setStrength] = useState(10);
@@ -13,7 +14,7 @@ const CreateCharacter = ({ onCharacterCreated }) => {
 
   const handleStatChange = (stat, value) => {
     if (availablePoints > 0 || value < 0) {
-      switch(stat) {
+      switch (stat) {
         case 'strength':
           setStrength(prev => Math.max(10, prev + value));
           break;
@@ -40,7 +41,7 @@ const CreateCharacter = ({ onCharacterCreated }) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/character', 
+      const response = await axios.post(`${APP_SERVER_URL}/api/character`,
         { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma },
         { headers: { Authorization: `Bearer ${token}` } }
       );
@@ -87,4 +88,4 @@ const CreateCharacter = ({ onCharacterCreated }) => {
   );
 };
 
-export default CreateCharacter;
+export default CharacterCreate;

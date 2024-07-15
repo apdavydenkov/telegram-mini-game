@@ -1,10 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
 import Character from '../Character/Character';
-import CharacterInfo from '../Character/CharacterStats';
+import CharacterStats from '../Character/CharacterStats';
+import CreateCharacter from '../Character/CharacterCreate';
 import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
-import CreateCharacter from '../Character/CreateCharacter';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -26,7 +26,7 @@ const TabContent = ({ children }) => (
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [character, setCharacter] = useState(null);
-  const [activeTab, setActiveTab] = useState('characteristics');
+  const [activeTab, setActiveTab] = useState('charactersats');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -80,8 +80,8 @@ const Dashboard = () => {
     }
   };
 
-  const handleCharacterCreated = async (newCharacter) => {
-    setCharacter(newCharacter);
+  const handleCharacterCreated = async (nextVersionCharacter) => {
+    setCharacter(nextVersionCharacter);
     // Обновляем данные пользователя, чтобы отразить создание персонажа
     const updatedUser = { ...user, hasCharacter: true };
     setUser(updatedUser);
@@ -110,12 +110,12 @@ const Dashboard = () => {
       <Character character={character} />
       
       <div className="flex mt-4">
-        <Tab label="Характеристики" active={activeTab === 'characteristics'} onClick={() => setActiveTab('characteristics')} />
+        <Tab label="Характеристики" active={activeTab === 'charactersats'} onClick={() => setActiveTab('charactersats')} />
         <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
         <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
       </div>
       <TabContent>
-        {activeTab === 'characteristics' && <CharacterInfo character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
+        {activeTab === 'charactersats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
         {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
         {activeTab === 'skills' && <Skills skills={character.skills || []} />}
       </TabContent>

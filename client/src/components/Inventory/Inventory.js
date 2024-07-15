@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { APP_SERVER_URL } from '../../config/config';
 
 const CategoryTab = ({ id, name, active, onClick }) => (
   <button
@@ -11,33 +13,64 @@ const CategoryTab = ({ id, name, active, onClick }) => (
   </button>
 );
 
-const ItemSlot = ({ item, onEquipItem }) => (
-  <div
-    className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100"
-    onClick={() => item && onEquipItem(item.id, item.slot)}
-  >
-    {item && (
-      <>
-        <div className="font-bold mb-1 text-gray-800 truncate w-full">{item.name}</div>
-        <div className="text-gray-600">x{item.quantity}</div>
-      </>
-    )}
-  </div>
-);
+const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
+  const [itemDetails, setItemDetails] = useState(null);
 
-const Inventory = ({ inventory, onEquipItem }) => {
+  useEffect(() => {
+    if (inventoryItem && inventoryItem._id) {
+      fetchItemDetails(inventoryItem._id);
+    }
+  }, [inventoryItem]);
+
+  const fetchItemDetails = async (id) => {
+    try {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('Токен отсутствует.');
+        return;
+      }
+      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/${id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setItemDetails(response.data);
+    } catch (error) {
+      console.error('Error fetching item details:', error.response?.data || error.message);
+    }
+  };
+
+  return (
+    <div
+      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${
+        itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
+      }`}
+      style={itemDetails ? { backgroundImage: `url(${itemDetails.image || "https://placehold.co/100"})` } : {}}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.type)}
+    >
+      {itemDetails && (
+        <>
+          <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+          <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
+            <div className="font-bold truncate w-full">{itemDetails.name}</div>
+            <div>x{inventoryItem.quantity}</div>
+          </div>
+        </>
+      )}
+    </div>
+  );
+};
+
+const Inventory = ({ inventory, onClickInventoryItem }) => {
   const [activeCategory, setActiveCategory] = useState('all');
 
   const categories = [
     { id: 'all', name: 'Все' },
-    { id: 'weapon', name: 'Оружие' },
-    { id: 'armor', name: 'Броня' },
-    { id: 'potion', name: 'Зелья' },
-    { id: 'misc', name: 'Предметы' },
+    { id: 'equipment', name: 'Экипировка' },
+    { id: 'resource', name: 'Ресурсы' },
+    { id: 'misc', name: 'Разное' },
   ];
 
-  const filteredInventory = inventory.filter(item => 
-    activeCategory === 'all' || item.category === activeCategory
+  const filteredInventory = inventory.filter(inventoryItem => 
+    activeCategory === 'all' || inventoryItem.type === activeCategory
   );
 
   return (
@@ -53,12 +86,12 @@ const Inventory = ({ inventory, onEquipItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-7 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
-        {filteredInventory.map((item, index) => (
-          <ItemSlot key={index} item={item} onEquipItem={onEquipItem} />
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+        {filteredInventory.map((inventoryItem, index) => (
+          <InventorySlot key={index} inventoryItem={inventoryItem} onClickInventoryItem={onClickInventoryItem} />
         ))}
         {[...Array(24 - filteredInventory.length)].map((_, index) => (
-          <ItemSlot key={`empty-${index}`} />
+          <InventorySlot key={`empty-${index}`} />
         ))}
       </div>
     </div>

@@ -1,5 +1,6 @@
 // controllers/equipmentController.js
 const Equipment = require('../models/Equipment');
+const Character = require('../models/Character');
 
 exports.createEquipment = async (req, res) => {
   try {
@@ -53,5 +54,29 @@ exports.deleteEquipment = async (req, res) => {
     res.json({ message: 'Equipment deleted successfully' });
   } catch (error) {
     res.status(400).json({ message: 'Error deleting equipment', error: error.message });
+  }
+};
+
+exports.sendEquipmentById = async (req, res) => {
+  try {
+    const { equipmentId, characterId } = req.params;
+
+    const equipment = await Equipment.findById(equipmentId);
+    if (!equipment) {
+      return res.status(404).json({ message: 'Equipment not found' });
+    }
+    
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return res.status(404).json({ message: 'Character not found' });
+    }
+    
+    // Добавляем оборудование к персонажу
+    character.inventory.push(equipment._id);
+    await character.save();
+    
+    res.json({ message: 'Equipment sent to character successfully', character });
+  } catch (error) {
+    res.status(400).json({ message: 'Error sending equipment', error: error.message });
   }
 };

@@ -6,7 +6,8 @@ const {
   getAllEquipment, 
   getEquipmentById, 
   updateEquipment, 
-  deleteEquipment 
+  deleteEquipment,
+  sendEquipmentById
 } = require('../controllers/equipmentController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminMiddleware = require('../middlewares/adminMiddleware');
@@ -16,5 +17,6 @@ router.get('/', authMiddleware, getAllEquipment);
 router.get('/:id', authMiddleware, getEquipmentById);
 router.put('/:id', authMiddleware, adminMiddleware, updateEquipment);
 router.delete('/:id', authMiddleware, adminMiddleware, deleteEquipment);
+router.post('/send/:equipmentId/:characterId', authMiddleware, adminMiddleware, sendEquipmentById);
 
 module.exports = router;

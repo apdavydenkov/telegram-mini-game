@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
+import { APP_SERVER_URL } from '../../config/config';
 
-const API_BASE_URL = 'http://localhost:5000';
-
-const EquipmentList = () => {
+const AdminEquipmentList = () => {
+  const navigate = useNavigate();
   const [equipment, setEquipment] = useState([]);
 
   useEffect(() => {
@@ -14,7 +14,12 @@ const EquipmentList = () => {
   const fetchEquipment = async () => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.get(`${API_BASE_URL}/api/equipment/`, {
+      if (!token) {
+        console.log('Токен отсутствует. Перенаправление на страницу входа.');
+        navigate('/login');
+        return;
+      }
+      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setEquipment(response.data);
@@ -23,11 +28,11 @@ const EquipmentList = () => {
     }
   };
 
-  const handleDelete = async (id) => {
+  const handleDelete = async (equipmentId) => {
     if (window.confirm('Are you sure you want to delete this equipment?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`${API_BASE_URL}/api/equipment/${id}`, {
+        await axios.delete(`${APP_SERVER_URL}/api/equipment/${equipmentId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
         fetchEquipment();
@@ -36,10 +41,22 @@ const EquipmentList = () => {
       }
     }
   };
-
-  const handleAddToCharacter = (id) => {
-    // This function will be implemented later
-    console.log('Add to character:', id);
+  
+  const handleSendEquipment = async (equipmentId) => {
+    const characterId = prompt("Enter the character ID to send the equipment to:");
+    if (characterId) {
+      try {
+        const token = localStorage.getItem('token');
+        await axios.post(`${APP_SERVER_URL}/api/equipment/send/${equipmentId}/${characterId}`, 
+          {},
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        alert('Equipment sent successfully');
+      } catch (error) {
+        console.error('Error sending equipment:', error.response?.data || error.message);
+        alert(error.response?.data?.message || 'Error sending equipment');
+      }
+    }
   };
 
   return (
@@ -62,25 +79,25 @@ const EquipmentList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {equipment.map((item) => (
-              <tr key={item._id}>
+            {equipment.map((equipmentItem) => (
+              <tr key={equipmentItem._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10">
-                      <img className="h-10 w-10 rounded-full" src={item.image || "https://via.placeholder.com/150"} alt={item.name} />
+                      <img className="h-10 w-10 rounded-full" src={equipmentItem.image || "https://via.placeholder.com/150"} alt={equipmentItem.name} />
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                      <div className="text-sm font-medium text-gray-900">{equipmentItem.name}</div>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.rarity}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{item.minLevel}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.rarity}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.minLevel}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Link to={`/admin/equipment/edit/${item._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
-                  <button onClick={() => handleDelete(item._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
-                  <button onClick={() => handleAddToCharacter(item._id)} className="text-green-600 hover:text-green-900">Add to Character</button>
+                  <Link to={`/admin/equipment/edit/${equipmentItem._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
+                  <button onClick={() => handleDelete(equipmentItem._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
+                  <button onClick={() => handleSendEquipment(equipmentItem._id)} className="text-green-600 hover:text-green-900">Send</button>
                 </td>
               </tr>
             ))}
@@ -91,4 +108,4 @@ const EquipmentList = () => {
   );
 };
 
-export default EquipmentList;
+export default AdminEquipmentList;
