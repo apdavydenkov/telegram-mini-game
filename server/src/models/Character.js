@@ -37,7 +37,7 @@ const characterSchema = new mongoose.Schema({
   finalDistribution: { type: Boolean, default: false },
   // Инвентарь
   inventory: [{
-    charItem: { type: mongoose.Schema.Types.ObjectId, ref: 'charItem' },
+    charItem: { type: mongoose.Schema.Types.ObjectId, ref: 'CharItem' },
     quantity: { type: Number, default: 1 }
   }],
   // Экипировка

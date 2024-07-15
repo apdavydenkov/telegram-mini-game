@@ -1,6 +1,6 @@
 const Character = require('../models/Character');
 const User = require('../models/User');
-const Item = require('../models/Item');
+const CharItem = require('../models/CharItem');
 
 exports.createCharacter = async (req, res) => {
   try {
@@ -106,24 +106,24 @@ exports.updateCharacter = async (req, res) => {
   }
 };
 
-exports.addItemToInventory = async (req, res) => {
+exports.addCharItemToInventory = async (req, res) => {
   try {
-    const { itemId } = req.body;
+    const { charItemId } = req.body;
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
     
-    const item = await Item.findById(itemId);
-    if (!item) {
+    const charItem = await CharItem.findById(charItemId);
+    if (!charItem) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    const inventoryItem = character.inventory.find(i => i.item.toString() === itemId);
-    if (inventoryItem) {
-      inventoryItem.quantity += 1;
+    const inventoryCharItem = character.inventory.find(i => i.charItem.toString() === charItemId);
+    if (inventoryCharItem) {
+      inventoryCharItem.quantity += 1;
     } else {
-      character.inventory.push({ item: itemId, quantity: 1 });
+      character.inventory.push({ charItem: charItemId, quantity: 1 });
     }
 
     await character.save();
@@ -134,30 +134,30 @@ exports.addItemToInventory = async (req, res) => {
   }
 };
 
-exports.equipItem = async (req, res) => {
+exports.equipCharItem = async (req, res) => {
   try {
-    const { itemId, slot } = req.body;
+    const { charItemId, slot } = req.body;
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const item = await Item.findById(itemId);
-    if (!item) {
+    const charItem = await CharItem.findById(charItemId);
+    if (!charItem) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    if (item.slot !== slot) {
+    if (charItem.slot !== slot) {
       return res.status(400).json({ message: 'Предмет нельзя экипировать в этот слот' });
     }
 
     // Снимаем текущий предмет, если он есть
     if (character.equipment[slot]) {
-      character.inventory.push({ item: character.equipment[slot], quantity: 1 });
+      character.inventory.push({ charItem: character.equipment[slot], quantity: 1 });
     }
 
     // Удаляем предмет из инвентаря и экипируем его
-    const inventoryIndex = character.inventory.findIndex(i => i.item.toString() === itemId);
+    const inventoryIndex = character.inventory.findIndex(i => i.charItem.toString() === charItemId);
     if (inventoryIndex === -1) {
       return res.status(400).json({ message: 'Предмет не найден в инвентаре' });
     }
@@ -168,7 +168,7 @@ exports.equipItem = async (req, res) => {
       character.inventory.splice(inventoryIndex, 1);
     }
 
-    character.equipment[slot] = itemId;
+    character.equipment[slot] = charItemId;
 
     await character.save();
     res.json(character);

@@ -5,6 +5,7 @@ const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const characterRoutes = require('./routes/characterRoutes');
 const equipmentRoutes = require('./routes/equipmentRoutes');
+const charItemRoutes = require('./routes/charItemRoutes');
 
 dotenv.config({ path: '.env' });
 
@@ -24,6 +25,7 @@ connectDB();
 app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
 app.use('/api/equipment', equipmentRoutes);
+app.use('/api/charItem', charItemRoutes);
 
 const PORT = process.env.PORT || 5000;
 
