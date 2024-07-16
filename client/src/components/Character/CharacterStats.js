@@ -1,14 +1,29 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaPercent, FaBalanceScale } from 'react-icons/fa';
+import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaBalanceScale } from 'react-icons/fa';
 import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterStats = ({ character, onCharacterUpdate }) => {
   const [updatedCharacter, setUpdatedCharacter] = useState(character);
+  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     setUpdatedCharacter(character);
+    setCurrentHealth(character.healthData.currentHealth);
+
+    const updateHealth = () => {
+      const now = new Date();
+      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
+      setCurrentHealth(Math.round(newHealth * 100) / 100);
+    };
+
+    updateHealth();
+    const intervalId = setInterval(updateHealth, 1000);
+
+    return () => clearInterval(intervalId);
   }, [character]);
 
   const handleStatIncrease = async (stat) => {
@@ -60,10 +75,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </span>
       <div className="flex items-center">
         <span className="font-semibold text-blue-600 mx-2">
-          {maxValue !== undefined
-            ? `${Math.round(value || 0)}/${Math.round(maxValue || 0)}`
-            : Math.round(value || 0)
-          }
+          {maxValue !== undefined ? `${Math.round(value)}/${maxValue}` : value}
         </span>
         {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
           <button
@@ -83,9 +95,6 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
 
   const { calculatedStats } = updatedCharacter;
 
-  console.log('Health:', calculatedStats.health);
-  console.log('MaxHealth:', calculatedStats.maxHealth);
-
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
       {error && <div className="col-span-2 text-red-500">{error}</div>}
@@ -99,10 +108,11 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         <StatParam
           icon={FaHeart}
           label="Здоровье"
-          value={calculatedStats.health}
-          maxValue={calculatedStats.maxHealth}
+          value={currentHealth}
+          maxValue={updatedCharacter.healthData.maxHealth}
           isAdjustable={false}
-        />       {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
+        />
+        {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
             Доступные навыки: {updatedCharacter.availablePoints}
@@ -111,13 +121,14 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage || 0} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor || 0} isAdjustable={false} />
-        <StatParam icon={FaBullseye} label="Шанс крита" value={`${(calculatedStats.criticalChance || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBolt} label="Сила крита" value={`${(calculatedStats.criticalDamage || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaWind} label="Уворот" value={`${(calculatedStats.dodge || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${(calculatedStats.counterAttack || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegenRate.toFixed(2)}/сек`} isAdjustable={false} />      </div>
+        <StatParam icon={FaFistRaised} label="Урон" value={Math.round(calculatedStats.damage)} isAdjustable={false} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={Math.round(calculatedStats.armor)} isAdjustable={false} />
+        <StatParam icon={FaBullseye} label="Шанс крита" value={`${calculatedStats.criticalChance.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBolt} label="Сила крита" value={`${calculatedStats.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaWind} label="Уворот" value={`${calculatedStats.dodge.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${calculatedStats.counterAttack.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
+      </div>
     </div>
   );
 };

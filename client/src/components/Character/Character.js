@@ -1,11 +1,41 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Character = ({ character }) => {
+  const [currentHealth, setCurrentHealth] = useState(0);
+  const [maxHealth, setMaxHealth] = useState(0);
+
+  useEffect(() => {
+    if (character && character.healthData) {
+      setCurrentHealth(character.healthData.currentHealth);
+      setMaxHealth(character.healthData.maxHealth);
+      
+      const updateHealth = () => {
+        const now = new Date();
+        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+        const newHealth = Math.min(character.healthData.currentHealth + regenAmount, character.healthData.maxHealth);
+        setCurrentHealth(Math.round(newHealth * 100) / 100);
+      };
+
+      updateHealth();
+      const intervalId = setInterval(updateHealth, 1000); // Обновляем каждую секунду
+
+      return () => clearInterval(intervalId);
+    }
+  }, [character]);
+
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const { calculatedStats } = character;
+  const renderEquippedItem = (slot) => {
+    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.slot === slot);
+    return equippedItem ? (
+      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${slot}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
+    ) : (
+      <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
+    );
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
@@ -19,7 +49,7 @@ const Character = ({ character }) => {
             {character.status}
           </span>
         </div>
-
+        
         {/* EXP Bar */}
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
@@ -30,15 +60,15 @@ const Character = ({ character }) => {
             EXP: {character.experience}/100
           </div>
         </div>
-
+        
         {/* HP Bar */}
         <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-red-500 absolute left-0 top-0"
-            style={{ width: `${((calculatedStats?.health || 0) / (calculatedStats?.maxHealth || 1)) * 100}%` }}
+            style={{ width: `${(currentHealth / maxHealth) * 100}%` }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-            HP: {Math.round(calculatedStats?.health || 0)}/{calculatedStats?.maxHealth || 0}
+            HP: {Math.round(currentHealth)}/{maxHealth}
           </div>
         </div>
 
@@ -47,44 +77,30 @@ const Character = ({ character }) => {
           <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
         </div>
 
-        {/* Banner */}
+        {/* Equipment slots */}
         <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Banner" alt="Banner" className="w-full h-full object-cover" />
+          {renderEquippedItem('banner')}
         </div>
-
-        {/* Helmet */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Helmet" alt="Helmet" className="w-full h-full object-cover" />
+          {renderEquippedItem('helmet')}
         </div>
-
-        {/* Weapon */}
         <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Weapon" alt="Weapon" className="w-full h-full object-cover" />
+          {renderEquippedItem('weapon')}
         </div>
-
-        {/* Shield */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Shield" alt="Shield" className="w-full h-full object-cover" />
+          {renderEquippedItem('shield')}
         </div>
-
-        {/* Armor */}
         <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Armor" alt="Armor" className="w-full h-full object-cover" />
+          {renderEquippedItem('armor')}
         </div>
-
-        {/* Cloak */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Cloak" alt="Cloak" className="w-full h-full object-cover" />
+          {renderEquippedItem('cloak')}
         </div>
-
-        {/* Belt */}
         <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Belt" alt="Belt" className="w-full h-full object-cover" />
+          {renderEquippedItem('belt')}
         </div>
-
-        {/* Boots */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Boots" alt="Boots" className="w-full h-full object-cover" />
+          {renderEquippedItem('boots')}
         </div>
 
         {/* Inventory items */}
@@ -122,7 +138,6 @@ const Character = ({ character }) => {
         <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
         </div>
-
       </div>
     </div>
   );

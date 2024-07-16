@@ -91,21 +91,9 @@ const Dashboard = () => {
     }
   };
 
-  const handleCharacterCreated = async (newCharacter) => {
+  const handleCharacterCreated = (newCharacter) => {
     setCharacter(newCharacter);
-    // Обновляем данные пользователя, чтобы отразить создание персонажа
     setUser(prevUser => ({ ...prevUser, hasCharacter: true }));
-    // Обновляем данные на сервере
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(`${APP_SERVER_URL}/api/auth/update`,
-        { hasCharacter: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (error) {
-      console.error('Ошибка обновления данных пользователя:', error);
-      setError('Ошибка обновления данных пользователя. Пожалуйста, обновите страницу.');
-    }
   };
 
   if (loading) {

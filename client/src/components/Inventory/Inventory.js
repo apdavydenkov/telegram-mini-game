@@ -17,8 +17,8 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
 
   useEffect(() => {
-    if (inventoryItem && inventoryItem.charItem) {
-      fetchItemDetails(inventoryItem.charItem);
+    if (inventoryItem) {
+      fetchItemDetails(inventoryItem._id);
     }
   }, [inventoryItem]);
 
@@ -43,15 +43,15 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
       className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${
         itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
       }`}
-      style={itemDetails ? { backgroundImage: `url(${itemDetails.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem.charItem, itemDetails?.type)}
+      style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.gameItem?.type)}
     >
       {itemDetails && (
         <>
           <div className="absolute inset-0 bg-black bg-opacity-30"></div>
           <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
-            <div className="font-bold truncate w-full">{itemDetails.name}</div>
-            <div>x{inventoryItem.quantity}</div>
+            <div className="font-bold truncate w-full">{itemDetails.gameItem.name}</div>
+            <div>x{itemDetails.quantity}</div>
           </div>
         </>
       )}
@@ -79,7 +79,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     if (activeCategory === 'all') {
       setFilteredInventory(inventory);
     } else {
-      const filtered = inventory.filter(item => item.type === activeCategory);
+      const filtered = inventory.filter(item => item.gameItem?.type === activeCategory);
       setFilteredInventory(filtered);
     }
   };
@@ -89,9 +89,8 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
   };
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4">
-      <h2 className="text-2xl font-bold mb-4">Инвентарь</h2>
-      <div className="flex mb-4">
+    <div>
+      <div className="flex mt-4">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
@@ -102,18 +101,18 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot 
-            key={`${item.charItem}-${index}`}
+            key={`${item._id}-${index}`}
             inventoryItem={item} 
             onClickInventoryItem={onClickInventoryItem}
           />
         ))}
-        {Array.from({ length: Math.max(0, 40 - filteredInventory.length) }).map((_, index) => (
+        {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
           <div 
             key={`empty-${index}`}
-            className="aspect-square border border-gray-200 rounded-md"
+            className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center"
           />
         ))}
       </div>

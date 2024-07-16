@@ -601,12 +601,28 @@ export default Register;
 
 
 // Далее код файла components\Character\Character.js:
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 
 const Character = ({ character }) => {
-  if (!character) {
-    return <div>Загрузка персонажа...</div>;
-  }
+  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
+  const [maxHealth, setMaxHealth] = useState(character.healthData.maxHealth);
+
+  useEffect(() => {
+    setMaxHealth(character.healthData.maxHealth);
+    
+    const updateHealth = () => {
+      const now = new Date();
+      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
+      setCurrentHealth(Math.round(newHealth * 100) / 100);
+    };
+
+    updateHealth();
+    const intervalId = setInterval(updateHealth, 1000); // Обновляем каждую секунду
+
+    return () => clearInterval(intervalId);
+  }, [character.healthData]);
 
   const { calculatedStats } = character;
 
@@ -618,8 +634,11 @@ const Character = ({ character }) => {
           <span className="ml-2 bg-blue-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-sm">
             {character.level}
           </span>
+          <span className="ml-2 bg-gray-300 text-gray-800 rounded-md px-2 py-1 text-xs">
+            {character.status}
+          </span>
         </div>
-
+        
         {/* EXP Bar */}
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
@@ -630,15 +649,15 @@ const Character = ({ character }) => {
             EXP: {character.experience}/100
           </div>
         </div>
-
+        
         {/* HP Bar */}
         <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-red-500 absolute left-0 top-0"
-            style={{ width: `${((calculatedStats?.health || 0) / (calculatedStats?.maxHealth || 1)) * 100}%` }}
+            style={{ width: `${(currentHealth / maxHealth) * 100}%` }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-            HP: {Math.round(calculatedStats?.health || 0)}/{calculatedStats?.maxHealth || 0}
+            HP: {Math.round(currentHealth)}/{maxHealth}
           </div>
         </div>
 
@@ -722,7 +741,6 @@ const Character = ({ character }) => {
         <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
         </div>
-
       </div>
     </div>
   );
@@ -822,15 +840,30 @@ export default CharacterCreate;
 // Далее код файла components\Character\CharacterStats.js:
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
-import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaPercent, FaBalanceScale } from 'react-icons/fa';
+import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaBalanceScale } from 'react-icons/fa';
 import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterStats = ({ character, onCharacterUpdate }) => {
   const [updatedCharacter, setUpdatedCharacter] = useState(character);
+  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     setUpdatedCharacter(character);
+    setCurrentHealth(character.healthData.currentHealth);
+
+    const updateHealth = () => {
+      const now = new Date();
+      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
+      setCurrentHealth(Math.round(newHealth * 100) / 100);
+    };
+
+    updateHealth();
+    const intervalId = setInterval(updateHealth, 1000);
+
+    return () => clearInterval(intervalId);
   }, [character]);
 
   const handleStatIncrease = async (stat) => {
@@ -874,19 +907,20 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     }
   };
 
-  const StatParam = ({ icon: Icon, label, value, stat, isAdjustable = true }) => (
+  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => (
     <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
       <span className="flex items-center text-gray-700">
         <Icon className="mr-2 text-blue-500" />
         {label}:
       </span>
       <div className="flex items-center">
-        <span className="font-semibold text-blue-600 mx-2">{value}</span>
-        {isAdjustable && !updatedCharacter.finalDistribution && (
+        <span className="font-semibold text-blue-600 mx-2">
+          {maxValue !== undefined ? `${Math.round(value)}/${maxValue}` : value}
+        </span>
+        {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
           <button
             onClick={() => handleStatIncrease(stat)}
-            disabled={updatedCharacter.availablePoints <= 0}
-            className="w-6 h-6 bg-green-500 text-white rounded disabled:bg-gray-300"
+            className="w-6 h-6 bg-green-500 text-white rounded"
           >
             +
           </button>
@@ -911,7 +945,13 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.baseIntelligence} stat="intelligence" />
         <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.baseEndurance} stat="endurance" />
         <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.baseCharisma} stat="charisma" />
-        <StatParam icon={FaHeart} label="Здоровье" value={Math.round(calculatedStats.health)} maxValue={calculatedStats.maxHealth} isAdjustable={false} />
+        <StatParam
+          icon={FaHeart}
+          label="Здоровье"
+          value={currentHealth}
+          maxValue={updatedCharacter.healthData.maxHealth}
+          isAdjustable={false}
+        />
         {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
@@ -921,13 +961,13 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage || 0} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor || 0} isAdjustable={false} />
-        <StatParam icon={FaBullseye} label="Шанс крита" value={`${(calculatedStats.criticalChance || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBolt} label="Сила крита" value={`${(calculatedStats.criticalDamage || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaWind} label="Уворот" value={`${(calculatedStats.dodge || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${(calculatedStats.counterAttack || 0).toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${(calculatedStats.healthRegen || 0).toFixed(2)}/сек`} isAdjustable={false} />
+        <StatParam icon={FaFistRaised} label="Урон" value={Math.round(calculatedStats.damage)} isAdjustable={false} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={Math.round(calculatedStats.armor)} isAdjustable={false} />
+        <StatParam icon={FaBullseye} label="Шанс крита" value={`${calculatedStats.criticalChance.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBolt} label="Сила крита" value={`${calculatedStats.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaWind} label="Уворот" value={`${calculatedStats.dodge.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${calculatedStats.counterAttack.toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
       </div>
     </div>
   );
@@ -1179,9 +1219,8 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
   };
 
   return (
-    <div className="bg-white shadow-md rounded-lg p-4">
-      <h2 className="text-2xl font-bold mb-4">Инвентарь</h2>
-      <div className="flex mb-4">
+    <div>
+      <div className="flex mt-4">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
@@ -1192,7 +1231,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg  ">
         {filteredInventory.map((item, index) => (
           <InventorySlot 
             key={`${item.charItem}-${index}`}
@@ -1200,10 +1239,10 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
             onClickInventoryItem={onClickInventoryItem}
           />
         ))}
-        {Array.from({ length: Math.max(0, 40 - filteredInventory.length) }).map((_, index) => (
+        {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
           <div 
             key={`empty-${index}`}
-            className="aspect-square border border-gray-200 rounded-md"
+            className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center"
           />
         ))}
       </div>

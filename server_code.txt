@@ -230,13 +230,12 @@ exports.getCharacter = async (req, res) => {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
     
-    // Обновляем здоровье без изменения версии
-    character.updateHealth();
-    await character.save({ validateBeforeSave: false });
+    const healthData = character.getHealthData();
+    const characterData = character.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = character.calculatedStats;
     
-    const characterWithStats = character.toObject();
-    characterWithStats.calculatedStats = character.calculatedStats;
-    res.json(characterWithStats);
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка при получении персонажа:', error);
     res.status(400).json({ message: 'Ошибка при получении персонажа', error: error.message });
@@ -268,13 +267,6 @@ exports.updateCharacter = async (req, res) => {
       return res.status(400).json({ message: 'Недопустимое распределение очков' });
     }
 
-    // Проверяем каждую характеристику отдельно
-    if (baseStrength < character.baseStrength || baseStrength > character.baseStrength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
-    if (baseDexterity < character.baseDexterity || baseDexterity > character.baseDexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
-    if (baseIntelligence < character.baseIntelligence || baseIntelligence > character.baseIntelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
-    if (baseEndurance < character.baseEndurance || baseEndurance > character.baseEndurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
-    if (baseCharisma < character.baseCharisma || baseCharisma > character.baseCharisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
-
     character.baseStrength = baseStrength;
     character.baseDexterity = baseDexterity;
     character.baseIntelligence = baseIntelligence;
@@ -282,15 +274,14 @@ exports.updateCharacter = async (req, res) => {
     character.baseCharisma = baseCharisma;
     character.availablePoints -= pointsSpent;
 
-    // Устанавливаем finalDistribution в true, если все очки распределены
-    if (character.availablePoints === 0) {
-      character.finalDistribution = true;
-    }
-
     await character.save();
-    const updatedCharacter = character.toObject();
-    updatedCharacter.calculatedStats = character.calculatedStats;
-    res.json(updatedCharacter);
+    
+    const healthData = character.getHealthData();
+    const characterData = character.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = character.calculatedStats;
+
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка обновления персонажа:', error);
     res.status(400).json({ message: 'Ошибка обновления персонажа', error: error.message });
@@ -362,10 +353,55 @@ exports.equipCharItem = async (req, res) => {
     character.equipment[slot] = charItemId;
 
     await character.save();
-    res.json(character);
+
+    const healthData = character.getHealthData();
+    const characterData = character.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = character.calculatedStats;
+
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка экипировки предмета:', error);
     res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
+  }
+};
+
+// Добавим метод для получения данных о здоровье
+exports.getHealthData = async (req, res) => {
+  try {
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    const healthData = character.getHealthData();
+    res.json(healthData);
+  } catch (error) {
+    console.error('Ошибка при получении данных о здоровье:', error);
+    res.status(400).json({ message: 'Ошибка при получении данных о здоровье', error: error.message });
+  }
+};
+
+// Метод для нанесения урона персонажу
+exports.damageCharacter = async (req, res) => {
+  try {
+    const { damage } = req.body;
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    const currentHealth = character.getCurrentHealth();
+    const newHealth = Math.max(0, currentHealth - damage);
+    character.updateHealth(newHealth);
+
+    await character.save();
+
+    const healthData = character.getHealthData();
+    res.json(healthData);
+  } catch (error) {
+    console.error('Ошибка при нанесении урона персонажу:', error);
+    res.status(400).json({ message: 'Ошибка при нанесении урона персонажу', error: error.message });
   }
 };
 
@@ -533,6 +569,11 @@ const characterSchema = new mongoose.Schema({
   level: { type: Number, default: 1 },
   experience: { type: Number, default: 0 },
   gold: { type: Number, default: 0 },
+  status: {
+    type: String,
+    enum: ['idle', 'in_battle', 'resting'],
+    default: 'idle'
+  },
 
   // Базовые характеристики
   baseStrength: { type: Number, default: 10 },
@@ -542,9 +583,14 @@ const characterSchema = new mongoose.Schema({
   baseCharisma: { type: Number, default: 10 },
 
   // Здоровье
-  health: { type: Number, default: 100 },
-  maxHealth: { type: Number, default: 100 },
+  health: {
+    type: Number,
+    default: function () {
+      return this.getMaxHealth();
+    }
+  },
   lastHealthUpdate: { type: Date, default: Date.now },
+  fullRegenTimeInSeconds: { type: Number, default: 600 }, // 10 минут по умолчанию
 
   // Очки характеристик
   availablePoints: { type: Number, default: 5 },
@@ -576,24 +622,52 @@ characterSchema.virtual('finalDistribution').get(function () {
   return this.availablePoints === 0;
 });
 
-// Метод для получения текущего здоровья с учетом регенерации
-characterSchema.methods.getCurrentHealth = function () {
-  const now = new Date();
-  const timeSinceLastUpdate = (now - this.lastHealthUpdate) / 1000 / 60; // в минутах
-  const regenAmount = Math.min(timeSinceLastUpdate * (this.maxHealth / 30), this.maxHealth - this.health);
-  const currentHealth = Math.min(this.health + regenAmount, this.maxHealth);
-
-  // Округляем здоровье до двух знаков после запятой
-  return Math.round(currentHealth * 100) / 100;
+// Метод для получения максимального здоровья
+characterSchema.methods.getMaxHealth = function() {
+  return 10000 + (this.baseEndurance * 10);
 };
 
-characterSchema.methods.updateHealth = function () {
-  this.health = this.getCurrentHealth();
+// Метод для получения текущего здоровья с учетом регенерации
+characterSchema.methods.getCurrentHealth = function() {
+  const now = new Date();
+  const secondsSinceLastUpdate = Math.max(0, (now - this.lastHealthUpdate) / 1000);
+  const regenRate = this.getHealthRegenRate();
+  const regenAmount = regenRate * secondsSinceLastUpdate;
+  const maxHealth = this.getMaxHealth();
+  const newHealth = Math.min(this.health + regenAmount, maxHealth);
+  
+  return Math.round(newHealth * 100) / 100;
+};
+
+// Метод для получения скорости регенерации здоровья
+characterSchema.methods.getHealthRegenRate = function() {
+  const maxHealth = this.getMaxHealth();
+  return maxHealth / this.fullRegenTimeInSeconds;
+};
+
+// Метод для обновления здоровья
+characterSchema.methods.updateHealth = function (newHealth) {
+  this.health = Math.min(newHealth, this.getMaxHealth());
   this.lastHealthUpdate = new Date();
 };
 
+// Метод для получения данных о здоровье
+characterSchema.methods.getHealthData = function () {
+  const currentHealth = this.getCurrentHealth();
+  const maxHealth = this.getMaxHealth();
+  const regenRate = this.getHealthRegenRate();
+
+  return {
+    currentHealth,
+    maxHealth,
+    regenRate,
+    lastUpdate: this.lastHealthUpdate
+  };
+};
+
+// Виртуальное поле для рассчитываемых характеристик
 characterSchema.virtual('calculatedStats').get(function () {
-  // Здесь будет логика расчета всех характеристик с учетом базовых параметров, экипировки и навыков
+  const maxHealth = this.getMaxHealth();
   return {
     strength: this.baseStrength, // + бонусы от экипировки и навыков
     dexterity: this.baseDexterity, // + бонусы
@@ -601,32 +675,39 @@ characterSchema.virtual('calculatedStats').get(function () {
     endurance: this.baseEndurance, // + бонусы
     charisma: this.baseCharisma, // + бонусы
     health: this.getCurrentHealth(),
-    maxHealth: this.maxHealth,
+    maxHealth: maxHealth,
     damage: this.baseStrength * 2, // Пример расчета урона
     armor: this.baseEndurance, // Пример расчета брони
     criticalChance: this.baseDexterity * 0.1, // Пример расчета шанса крита
     criticalDamage: 150 + this.baseStrength, // Пример расчета силы крита
     dodge: this.baseDexterity * 0.2, // Пример расчета уворота
-    healthRegen: this.baseEndurance * 0.1, // Пример расчета регенерации здоровья
+    healthRegen: this.getHealthRegenRate(), // Скорость регенерации здоровья
     counterAttack: this.baseDexterity * 0.5 // Пример расчета шанса контратаки
   };
 });
 
+// Метод для получения максимального количества слотов навыков
 characterSchema.methods.getMaxSkillSlots = function () {
   return Math.floor(this.level / 5) + 3; // Базовые 3 слота + 1 слот каждые 5 уровней
 };
 
-characterSchema.pre('save', function (next) {
+// Пре-сохранение для увеличения версии и обновления здоровья
+characterSchema.pre('save', function(next) {
+  if (this.isNew) {
+    this.health = this.getMaxHealth();
+  }
+  
   if (this.isModified('baseStrength') ||
-    this.isModified('baseDexterity') ||
-    this.isModified('baseIntelligence') ||
-    this.isModified('baseEndurance') ||
-    this.isModified('baseCharisma') ||
-    this.isModified('equipment') ||
-    this.isModified('inventory')) {
+      this.isModified('baseDexterity') ||
+      this.isModified('baseIntelligence') ||
+      this.isModified('baseEndurance') ||
+      this.isModified('baseCharisma') ||
+      this.isModified('equipment') ||
+      this.isModified('inventory')) {
     this.version += 1;
   }
-  this.updateHealth();
+  
+  this.updateHealth(this.getCurrentHealth());
   next();
 });
 

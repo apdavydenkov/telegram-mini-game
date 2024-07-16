@@ -36,7 +36,7 @@ const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [gameItem, setGameItem] = useState({
-    name: '', type: '', rarity: '', minLevel: 1, image: '',
+    name: '', type: 'weapon', rarity: 'common', minLevel: 1, image: '',
     stats: {
       strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
       damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,

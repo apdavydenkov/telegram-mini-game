@@ -1,5 +1,7 @@
 const GameItem = require('../models/gameItem');
 const Character = require('../models/Character');
+const CharItem = require('../models/CharItem');
+const mongoose = require('mongoose');
 
 exports.createGameItem = async (req, res) => {
   try {
@@ -70,12 +72,26 @@ exports.sendGameItemToCharacter = async (req, res) => {
       return res.status(404).json({ message: 'Character not found' });
     }
     
-    // Добавляем игровой предмет к персонажу
-    character.inventory.push({ charItem: gameItem._id, quantity: 1 });
+    // Создаем новый CharItem
+    const charItem = new CharItem({
+      gameItem: gameItem._id,
+      character: character._id,
+      quantity: 1,
+      isEquipped: false,
+      slot: null
+    });
+
+    await charItem.save();
+    
+    // Добавляем CharItem к инвентарю персонажа
+    character.inventory.push(charItem._id);
     await character.save();
     
     res.json({ message: 'Game item sent to character successfully', character });
   } catch (error) {
+    console.error('Error sending game item:', error);
     res.status(400).json({ message: 'Error sending game item', error: error.message });
   }
 };
+
+module.exports = exports;
