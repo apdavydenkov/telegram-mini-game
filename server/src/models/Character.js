@@ -6,7 +6,7 @@ const characterSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  name: {
+  nickname: {
     type: String,
     required: true
   },
@@ -17,74 +17,171 @@ const characterSchema = new mongoose.Schema({
   },
   level: { type: Number, default: 1 },
   experience: { type: Number, default: 0 },
+  gold: { type: Number, default: 0 },
+  status: {
+    type: String,
+    enum: ['idle', 'in_battle', 'resting'],
+    default: 'idle'
+  },
+  
   // Базовые характеристики
-  strength: { type: Number, default: 10 },
-  dexterity: { type: Number, default: 10 },
-  intelligence: { type: Number, default: 10 },
-  endurance: { type: Number, default: 10 },
-  charisma: { type: Number, default: 10 },
-  // Расчетные характеристики (будут вычисляться)
-  damage: { type: Number, default: 0 },
-  armor: { type: Number, default: 0 },
-  criticalChance: { type: Number, default: 0 },
-  criticalDamage: { type: Number, default: 0 },
-  dodge: { type: Number, default: 0 },
-  healthRegen: { type: Number, default: 0 },
+  baseStrength: { type: Number, default: 10 },
+  baseDexterity: { type: Number, default: 10 },
+  baseIntelligence: { type: Number, default: 10 },
+  baseEndurance: { type: Number, default: 10 },
+  baseCharisma: { type: Number, default: 10 },
+  
+  // Здоровье
+  maxHealth: { type: Number, default: 100 },
   health: { type: Number, default: 100 },
-  counterAttack: { type: Number, default: 0 },
+  lastHealthUpdate: { type: Date, default: Date.now },
+  fullRegenTimeInSeconds: { type: Number, default: 600 }, // 10 минут по умолчанию
+  
   // Очки характеристик
   availablePoints: { type: Number, default: 5 },
-  finalDistribution: { type: Boolean, default: false },
+  
   // Инвентарь
   inventory: [{
     charItem: { type: mongoose.Schema.Types.ObjectId, ref: 'CharItem' },
     quantity: { type: Number, default: 1 }
   }],
+  
   // Экипировка
   equipment: {
-    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' }
+    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' }
   },
+  
   version: { type: Number, default: 0 }
 }, { timestamps: true });
 
-// Функция для пересчета характеристик
-characterSchema.methods.recalculateStats = function() {
-  // Базовые значения
-  this.damage = this.strength * 2;
-  this.armor = this.endurance;
-  this.criticalChance = this.dexterity * 0.1;
-  this.criticalDamage = 150 + this.strength;
-  this.dodge = this.dexterity * 0.2;
-  this.healthRegen = this.endurance * 0.1;
-  this.health = 100 + (this.endurance * 10);
-  this.counterAttack = this.dexterity * 0.5;
+// Виртуальное поле для проверки завершения распределения очков
+characterSchema.virtual('finalDistribution').get(function() {
+  return this.availablePoints === 0;
+});
 
-  // Добавление бонусов от экипировки
-  Object.values(this.equipment).forEach(item => {
-    if (item && item.stats) {
-      this.damage += item.stats.damage || 0;
-      this.armor += item.stats.armor || 0;
-      this.criticalChance += item.stats.criticalChance || 0;
-      this.criticalDamage += item.stats.criticalDamage || 0;
-      this.dodge += item.stats.dodge || 0;
-      this.healthRegen += item.stats.healthRegen || 0;
-      this.health += item.stats.health || 0;
-      this.counterAttack += item.stats.counterAttack || 0;
-    }
-  });
+// Метод для получения базовых характеристик
+characterSchema.methods.getBaseStats = function() {
+  return {
+    strength: this.baseStrength,
+    dexterity: this.baseDexterity,
+    intelligence: this.baseIntelligence,
+    endurance: this.baseEndurance,
+    charisma: this.baseCharisma,
+    maxHealth: this.maxHealth,
+  };
 };
 
+// Метод для расчета модификаторов от экипировки
+characterSchema.methods.getEquipmentModifiers = function() {
+  const modifiers = {
+    strength: 0,
+    dexterity: 0,
+    intelligence: 0,
+    endurance: 0,
+    charisma: 0,
+    healthRegenModifier: 0,
+    damage: 0,
+    armor: 0,
+    criticalChance: 0,
+    criticalDamage: 0,
+    dodge: 0,
+    counterAttack: 0,
+  };
+
+  for (const [slot, itemId] of Object.entries(this.equipment)) {
+    if (itemId) {
+      const item = this.getEquippedItem(slot);
+      if (item && item.stats) {
+        for (const [stat, value] of Object.entries(item.stats)) {
+          modifiers[stat] = (modifiers[stat] || 0) + value;
+        }
+      }
+    }
+  }
+
+  return modifiers;
+};
+
+// Виртуальное поле для рассчитываемых характеристик
+characterSchema.virtual('calculatedStats').get(function() {
+  const baseStats = this.getBaseStats();
+  const equipmentModifiers = this.getEquipmentModifiers();
+
+  const stats = {
+    strength: baseStats.strength + equipmentModifiers.strength,
+    dexterity: baseStats.dexterity + equipmentModifiers.dexterity,
+    intelligence: baseStats.intelligence + equipmentModifiers.intelligence,
+    endurance: baseStats.endurance + equipmentModifiers.endurance,
+    charisma: baseStats.charisma + equipmentModifiers.charisma,
+    health: this.getCurrentHealth(),
+    maxHealth: baseStats.maxHealth,
+    damage: (baseStats.strength + equipmentModifiers.strength) * 2 + equipmentModifiers.damage,
+    armor: baseStats.endurance + equipmentModifiers.endurance + equipmentModifiers.armor,
+    criticalChance: (baseStats.dexterity + equipmentModifiers.dexterity) * 0.1 + equipmentModifiers.criticalChance,
+    criticalDamage: 150 + baseStats.strength + equipmentModifiers.strength + equipmentModifiers.criticalDamage,
+    dodge: (baseStats.dexterity + equipmentModifiers.dexterity) * 0.2 + equipmentModifiers.dodge,
+    counterAttack: (baseStats.dexterity + equipmentModifiers.dexterity) * 0.5 + equipmentModifiers.counterAttack,
+  };
+
+  // Рассчитываем скорость регенерации здоровья
+  const baseRegenRate = this.maxHealth / this.fullRegenTimeInSeconds;
+  stats.healthRegenRate = baseRegenRate * (1 + (equipmentModifiers.healthRegenModifier || 0) / 100);
+
+  return stats;
+});
+
+// Метод для получения текущего здоровья с учетом регенерации
+characterSchema.methods.getCurrentHealth = function() {
+  const now = new Date();
+  const secondsSinceLastUpdate = Math.max(0, (now - this.lastHealthUpdate) / 1000);
+  const regenRate = this.maxHealth / this.fullRegenTimeInSeconds;
+  const regenAmount = regenRate * secondsSinceLastUpdate;
+  const newHealth = Math.min(this.health + regenAmount, this.maxHealth);
+  
+  // Округляем до двух знаков после запятой
+  return Math.round(newHealth * 100) / 100;
+};
+
+characterSchema.methods.updateHealth = function() {
+  const currentHealth = this.getCurrentHealth();
+  if (currentHealth !== this.health) {
+    this.health = currentHealth;
+    this.lastHealthUpdate = new Date();
+  }
+};
+
+// Метод для получения максимального количества слотов навыков
+characterSchema.methods.getMaxSkillSlots = function() {
+  return Math.floor(this.level / 5) + 3; // Базовые 3 слота + 1 слот каждые 5 уровней
+};
+
+// Метод для получения экипированного предмета (заглушка, нужно реализовать)
+characterSchema.methods.getEquippedItem = function(slot) {
+  // Здесь должна быть логика получения экипированного предмета
+  // Например, запрос к базе данных или к кэшу
+  return null; // Заглушка
+};
+
+// Пре-сохранение для увеличения версии и обновления здоровья
 characterSchema.pre('save', function(next) {
-  this.version += 1;
-  this.recalculateStats();
+  if (this.isModified('baseStrength') ||
+      this.isModified('baseDexterity') ||
+      this.isModified('baseIntelligence') ||
+      this.isModified('baseEndurance') ||
+      this.isModified('baseCharisma') ||
+      this.isModified('equipment') ||
+      this.isModified('inventory')) {
+    this.version += 1;
+  }
+  this.updateHealth();
   next();
 });
 

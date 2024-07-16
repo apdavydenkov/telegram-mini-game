@@ -4,7 +4,7 @@ const cors = require('cors');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const characterRoutes = require('./routes/characterRoutes');
-const equipmentRoutes = require('./routes/equipmentRoutes');
+const gameItemRoutes = require('./routes/gameItemRoutes');
 const charItemRoutes = require('./routes/charItemRoutes');
 
 dotenv.config({ path: '.env' });
@@ -24,7 +24,7 @@ connectDB();
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
-app.use('/api/equipment', equipmentRoutes);
+app.use('/api/gameItem', gameItemRoutes);
 app.use('/api/charItem', charItemRoutes);
 
 const PORT = process.env.PORT || 5000;

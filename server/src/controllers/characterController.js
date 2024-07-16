@@ -4,11 +4,11 @@ const CharItem = require('../models/CharItem');
 
 exports.createCharacter = async (req, res) => {
   try {
-    const { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma } = req.body;
+    const { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma } = req.body;
     
     // Проверка распределения очков
     const baseStats = 50; // 10 на каждую характеристику
-    const totalStats = strength + dexterity + intelligence + endurance + charisma;
+    const totalStats = baseStrength + baseDexterity + baseIntelligence + baseEndurance + baseCharisma;
     if (totalStats - baseStats > 5) {
       return res.status(400).json({ message: 'Неверное распределение характеристик' });
     }
@@ -21,13 +21,13 @@ exports.createCharacter = async (req, res) => {
 
     const character = new Character({
       user: req.user._id,
-      name,
+      nickname,
       class: characterClass,
-      strength,
-      dexterity,
-      intelligence,
-      endurance,
-      charisma,
+      baseStrength,
+      baseDexterity,
+      baseIntelligence,
+      baseEndurance,
+      baseCharisma,
       availablePoints: 5 - (totalStats - baseStats)
     });
     await character.save();
@@ -48,7 +48,14 @@ exports.getCharacter = async (req, res) => {
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
-    res.json(character);
+    
+    character.updateHealth();
+    await character.save({ validateBeforeSave: false });
+    
+    const characterData = character.toObject();
+    characterData.calculatedStats = character.calculatedStats;
+    
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка при получении персонажа:', error);
     res.status(400).json({ message: 'Ошибка при получении персонажа', error: error.message });
@@ -57,7 +64,7 @@ exports.getCharacter = async (req, res) => {
 
 exports.updateCharacter = async (req, res) => {
   try {
-    const { strength, dexterity, intelligence, endurance, charisma, version } = req.body;
+    const { baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma, version } = req.body;
     
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
@@ -72,8 +79,8 @@ exports.updateCharacter = async (req, res) => {
       return res.status(400).json({ message: 'Распределение очков уже завершено' });
     }
 
-    const newTotalStats = strength + dexterity + intelligence + endurance + charisma;
-    const oldTotalStats = character.strength + character.dexterity + character.intelligence + character.endurance + character.charisma;
+    const newTotalStats = baseStrength + baseDexterity + baseIntelligence + baseEndurance + baseCharisma;
+    const oldTotalStats = character.baseStrength + character.baseDexterity + character.baseIntelligence + character.baseEndurance + character.baseCharisma;
     const pointsSpent = newTotalStats - oldTotalStats;
 
     if (pointsSpent > character.availablePoints || pointsSpent < 0) {
@@ -81,25 +88,28 @@ exports.updateCharacter = async (req, res) => {
     }
 
     // Проверяем каждую характеристику отдельно
-    if (strength < character.strength || strength > character.strength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
-    if (dexterity < character.dexterity || dexterity > character.dexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
-    if (intelligence < character.intelligence || intelligence > character.intelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
-    if (endurance < character.endurance || endurance > character.endurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
-    if (charisma < character.charisma || charisma > character.charisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
+    if (baseStrength < character.baseStrength || baseStrength > character.baseStrength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
+    if (baseDexterity < character.baseDexterity || baseDexterity > character.baseDexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
+    if (baseIntelligence < character.baseIntelligence || baseIntelligence > character.baseIntelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
+    if (baseEndurance < character.baseEndurance || baseEndurance > character.baseEndurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
+    if (baseCharisma < character.baseCharisma || baseCharisma > character.baseCharisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
 
-    character.strength = strength;
-    character.dexterity = dexterity;
-    character.intelligence = intelligence;
-    character.endurance = endurance;
-    character.charisma = charisma;
+    character.baseStrength = baseStrength;
+    character.baseDexterity = baseDexterity;
+    character.baseIntelligence = baseIntelligence;
+    character.baseEndurance = baseEndurance;
+    character.baseCharisma = baseCharisma;
     character.availablePoints -= pointsSpent;
 
+    // Устанавливаем finalDistribution в true, если все очки распределены
     if (character.availablePoints === 0) {
       character.finalDistribution = true;
     }
 
     await character.save();
-    res.json(character);
+    const updatedCharacter = character.toObject();
+    updatedCharacter.calculatedStats = character.calculatedStats;
+    res.json(updatedCharacter);
   } catch (error) {
     console.error('Ошибка обновления персонажа:', error);
     res.status(400).json({ message: 'Ошибка обновления персонажа', error: error.message });
@@ -177,3 +187,5 @@ exports.equipCharItem = async (req, res) => {
     res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
   }
 };
+
+module.exports = exports;

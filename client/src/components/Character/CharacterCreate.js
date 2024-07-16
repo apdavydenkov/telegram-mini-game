@@ -3,37 +3,33 @@ import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterCreate = ({ onCharacterCreated }) => {
-  const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [characterClass, setCharacterClass] = useState('Warrior');
-  const [strength, setStrength] = useState(10);
-  const [dexterity, setDexterity] = useState(10);
-  const [intelligence, setIntelligence] = useState(10);
-  const [endurance, setEndurance] = useState(10);
-  const [charisma, setCharisma] = useState(10);
+  const [baseStrength, setBaseStrength] = useState(10);
+  const [baseDexterity, setBaseDexterity] = useState(10);
+  const [baseIntelligence, setBaseIntelligence] = useState(10);
+  const [baseEndurance, setBaseEndurance] = useState(10);
+  const [baseCharisma, setBaseCharisma] = useState(10);
   const [availablePoints, setAvailablePoints] = useState(5);
 
   const handleStatChange = (stat, value) => {
     if (availablePoints > 0 || value < 0) {
-      switch (stat) {
-        case 'strength':
-          setStrength(prev => Math.max(10, prev + value));
-          break;
-        case 'dexterity':
-          setDexterity(prev => Math.max(10, prev + value));
-          break;
-        case 'intelligence':
-          setIntelligence(prev => Math.max(10, prev + value));
-          break;
-        case 'endurance':
-          setEndurance(prev => Math.max(10, prev + value));
-          break;
-        case 'charisma':
-          setCharisma(prev => Math.max(10, prev + value));
-          break;
-        default:
-          break;
+      const statSetters = {
+        baseStrength: setBaseStrength,
+        baseDexterity: setBaseDexterity,
+        baseIntelligence: setBaseIntelligence,
+        baseEndurance: setBaseEndurance,
+        baseCharisma: setBaseCharisma
+      };
+
+      const currentValue = {
+        baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma
+      }[stat];
+
+      if (statSetters[stat]) {
+        statSetters[stat](Math.max(10, currentValue + value));
+        setAvailablePoints(prev => prev - value);
       }
-      setAvailablePoints(prev => prev - value);
     }
   };
 
@@ -42,7 +38,7 @@ const CharacterCreate = ({ onCharacterCreated }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${APP_SERVER_URL}/api/character`,
-        { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma },
+        { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       onCharacterCreated(response.data);
@@ -57,9 +53,9 @@ const CharacterCreate = ({ onCharacterCreated }) => {
       <form onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="Character Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="Character Nickname"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
           className="w-full p-2 mb-4 border rounded"
           required
         />
@@ -73,9 +69,9 @@ const CharacterCreate = ({ onCharacterCreated }) => {
           <option value="Archer">Archer</option>
         </select>
         <p className="mb-2">Available points: {availablePoints}</p>
-        {['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].map((stat) => (
+        {['baseStrength', 'baseDexterity', 'baseIntelligence', 'baseEndurance', 'baseCharisma'].map((stat) => (
           <div key={stat} className="flex justify-between items-center mb-2">
-            <span className="capitalize">{stat}: {eval(stat)}</span>
+            <span className="capitalize">{stat.replace('base', '')}: {eval(stat)}</span>
             <div>
               <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
               <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>

@@ -7,7 +7,8 @@ const cors = require('cors');
 const connectDB = require('./config/database');
 const authRoutes = require('./routes/authRoutes');
 const characterRoutes = require('./routes/characterRoutes');
-const equipmentRoutes = require('./routes/equipmentRoutes');
+const gameItemRoutes = require('./routes/gameItemRoutes');
+const charItemRoutes = require('./routes/charItemRoutes');
 
 dotenv.config({ path: '.env' });
 
@@ -26,7 +27,8 @@ connectDB();
 // Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
-app.use('/api/equipment', equipmentRoutes);
+app.use('/api/gameItem', gameItemRoutes);
+app.use('/api/charItem', charItemRoutes);
 
 const PORT = process.env.PORT || 5000;
 
@@ -179,15 +181,15 @@ exports.makeAdmin = async (req, res) => {
 // Далее код файла controllers\characterController.js:
 const Character = require('../models/Character');
 const User = require('../models/User');
-const Item = require('../models/Item');
+const CharItem = require('../models/CharItem');
 
 exports.createCharacter = async (req, res) => {
   try {
-    const { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma } = req.body;
+    const { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma } = req.body;
     
     // Проверка распределения очков
     const baseStats = 50; // 10 на каждую характеристику
-    const totalStats = strength + dexterity + intelligence + endurance + charisma;
+    const totalStats = baseStrength + baseDexterity + baseIntelligence + baseEndurance + baseCharisma;
     if (totalStats - baseStats > 5) {
       return res.status(400).json({ message: 'Неверное распределение характеристик' });
     }
@@ -200,13 +202,13 @@ exports.createCharacter = async (req, res) => {
 
     const character = new Character({
       user: req.user._id,
-      name,
+      nickname,
       class: characterClass,
-      strength,
-      dexterity,
-      intelligence,
-      endurance,
-      charisma,
+      baseStrength,
+      baseDexterity,
+      baseIntelligence,
+      baseEndurance,
+      baseCharisma,
       availablePoints: 5 - (totalStats - baseStats)
     });
     await character.save();
@@ -227,7 +229,14 @@ exports.getCharacter = async (req, res) => {
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
-    res.json(character);
+    
+    // Обновляем здоровье без изменения версии
+    character.updateHealth();
+    await character.save({ validateBeforeSave: false });
+    
+    const characterWithStats = character.toObject();
+    characterWithStats.calculatedStats = character.calculatedStats;
+    res.json(characterWithStats);
   } catch (error) {
     console.error('Ошибка при получении персонажа:', error);
     res.status(400).json({ message: 'Ошибка при получении персонажа', error: error.message });
@@ -236,7 +245,7 @@ exports.getCharacter = async (req, res) => {
 
 exports.updateCharacter = async (req, res) => {
   try {
-    const { strength, dexterity, intelligence, endurance, charisma, version } = req.body;
+    const { baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma, version } = req.body;
     
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
@@ -251,8 +260,8 @@ exports.updateCharacter = async (req, res) => {
       return res.status(400).json({ message: 'Распределение очков уже завершено' });
     }
 
-    const newTotalStats = strength + dexterity + intelligence + endurance + charisma;
-    const oldTotalStats = character.strength + character.dexterity + character.intelligence + character.endurance + character.charisma;
+    const newTotalStats = baseStrength + baseDexterity + baseIntelligence + baseEndurance + baseCharisma;
+    const oldTotalStats = character.baseStrength + character.baseDexterity + character.baseIntelligence + character.baseEndurance + character.baseCharisma;
     const pointsSpent = newTotalStats - oldTotalStats;
 
     if (pointsSpent > character.availablePoints || pointsSpent < 0) {
@@ -260,49 +269,52 @@ exports.updateCharacter = async (req, res) => {
     }
 
     // Проверяем каждую характеристику отдельно
-    if (strength < character.strength || strength > character.strength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
-    if (dexterity < character.dexterity || dexterity > character.dexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
-    if (intelligence < character.intelligence || intelligence > character.intelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
-    if (endurance < character.endurance || endurance > character.endurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
-    if (charisma < character.charisma || charisma > character.charisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
+    if (baseStrength < character.baseStrength || baseStrength > character.baseStrength + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение силы' });
+    if (baseDexterity < character.baseDexterity || baseDexterity > character.baseDexterity + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение ловкости' });
+    if (baseIntelligence < character.baseIntelligence || baseIntelligence > character.baseIntelligence + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение интеллекта' });
+    if (baseEndurance < character.baseEndurance || baseEndurance > character.baseEndurance + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение выносливости' });
+    if (baseCharisma < character.baseCharisma || baseCharisma > character.baseCharisma + character.availablePoints) return res.status(400).json({ message: 'Недопустимое значение харизмы' });
 
-    character.strength = strength;
-    character.dexterity = dexterity;
-    character.intelligence = intelligence;
-    character.endurance = endurance;
-    character.charisma = charisma;
+    character.baseStrength = baseStrength;
+    character.baseDexterity = baseDexterity;
+    character.baseIntelligence = baseIntelligence;
+    character.baseEndurance = baseEndurance;
+    character.baseCharisma = baseCharisma;
     character.availablePoints -= pointsSpent;
 
+    // Устанавливаем finalDistribution в true, если все очки распределены
     if (character.availablePoints === 0) {
       character.finalDistribution = true;
     }
 
     await character.save();
-    res.json(character);
+    const updatedCharacter = character.toObject();
+    updatedCharacter.calculatedStats = character.calculatedStats;
+    res.json(updatedCharacter);
   } catch (error) {
     console.error('Ошибка обновления персонажа:', error);
     res.status(400).json({ message: 'Ошибка обновления персонажа', error: error.message });
   }
 };
 
-exports.addItemToInventory = async (req, res) => {
+exports.addCharItemToInventory = async (req, res) => {
   try {
-    const { itemId } = req.body;
+    const { charItemId } = req.body;
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
     
-    const item = await Item.findById(itemId);
-    if (!item) {
+    const charItem = await CharItem.findById(charItemId);
+    if (!charItem) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    const inventoryItem = character.inventory.find(i => i.item.toString() === itemId);
-    if (inventoryItem) {
-      inventoryItem.quantity += 1;
+    const inventoryCharItem = character.inventory.find(i => i.charItem.toString() === charItemId);
+    if (inventoryCharItem) {
+      inventoryCharItem.quantity += 1;
     } else {
-      character.inventory.push({ item: itemId, quantity: 1 });
+      character.inventory.push({ charItem: charItemId, quantity: 1 });
     }
 
     await character.save();
@@ -313,30 +325,30 @@ exports.addItemToInventory = async (req, res) => {
   }
 };
 
-exports.equipItem = async (req, res) => {
+exports.equipCharItem = async (req, res) => {
   try {
-    const { itemId, slot } = req.body;
+    const { charItemId, slot } = req.body;
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const item = await Item.findById(itemId);
-    if (!item) {
+    const charItem = await CharItem.findById(charItemId);
+    if (!charItem) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    if (item.slot !== slot) {
+    if (charItem.slot !== slot) {
       return res.status(400).json({ message: 'Предмет нельзя экипировать в этот слот' });
     }
 
     // Снимаем текущий предмет, если он есть
     if (character.equipment[slot]) {
-      character.inventory.push({ item: character.equipment[slot], quantity: 1 });
+      character.inventory.push({ charItem: character.equipment[slot], quantity: 1 });
     }
 
     // Удаляем предмет из инвентаря и экипируем его
-    const inventoryIndex = character.inventory.findIndex(i => i.item.toString() === itemId);
+    const inventoryIndex = character.inventory.findIndex(i => i.charItem.toString() === charItemId);
     if (inventoryIndex === -1) {
       return res.status(400).json({ message: 'Предмет не найден в инвентаре' });
     }
@@ -347,7 +359,7 @@ exports.equipItem = async (req, res) => {
       character.inventory.splice(inventoryIndex, 1);
     }
 
-    character.equipment[slot] = itemId;
+    character.equipment[slot] = charItemId;
 
     await character.save();
     res.json(character);
@@ -357,73 +369,96 @@ exports.equipItem = async (req, res) => {
   }
 };
 
-// Далее код файла controllers\equipmentController.js:
-// controllers/equipmentController.js
-const Equipment = require('../models/Equipment');
+module.exports = exports;
+
+// Далее код файла controllers\charItemController.js:
+const CharItem = require('../models/CharItem');
+
+exports.createCharItem = async (req, res) => {
+  try {
+    const charItem = new CharItem(req.body);
+    await charItem.save();
+    res.status(201).json(charItem);
+  } catch (error) {
+    res.status(400).json({ message: 'Error creating char item', error: error.message });
+  }
+};
+
+exports.getAllCharItems = async (req, res) => {
+  try {
+    const charItems = await CharItem.find();
+    res.json(charItems);
+  } catch (error) {
+    res.status(400).json({ message: 'Error fetching char items', error: error.message });
+  }
+};
+
+// Далее код файла controllers\gameItemController.js:
+const GameItem = require('../models/gameItem');
 const Character = require('../models/Character');
 
-exports.createEquipment = async (req, res) => {
+exports.createGameItem = async (req, res) => {
   try {
-    const equipment = new Equipment(req.body);
-    await equipment.save();
-    res.status(201).json(equipment);
+    const gameItem = new GameItem(req.body);
+    await gameItem.save();
+    res.status(201).json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error creating equipment', error: error.message });
+    res.status(400).json({ message: 'Error creating game item', error: error.message });
   }
 };
 
-exports.getAllEquipment = async (req, res) => {
+exports.getAllGameItems = async (req, res) => {
   try {
-    const equipment = await Equipment.find();
-    res.json(equipment);
+    const gameItems = await GameItem.find();
+    res.json(gameItems);
   } catch (error) {
-    res.status(400).json({ message: 'Error fetching equipment', error: error.message });
+    res.status(400).json({ message: 'Error fetching game items', error: error.message });
   }
 };
 
-exports.getEquipmentById = async (req, res) => {
+exports.getGameItemById = async (req, res) => {
   try {
-    const equipment = await Equipment.findById(req.params.id);
-    if (!equipment) {
-      return res.status(404).json({ message: 'Equipment not found' });
+    const gameItem = await GameItem.findById(req.params.id);
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Game item not found' });
     }
-    res.json(equipment);
+    res.json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error fetching equipment', error: error.message });
+    res.status(400).json({ message: 'Error fetching game item', error: error.message });
   }
 };
 
-exports.updateEquipment = async (req, res) => {
+exports.updateGameItem = async (req, res) => {
   try {
-    const equipment = await Equipment.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!equipment) {
-      return res.status(404).json({ message: 'Equipment not found' });
+    const gameItem = await GameItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Game item not found' });
     }
-    res.json(equipment);
+    res.json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error updating equipment', error: error.message });
+    res.status(400).json({ message: 'Error updating game item', error: error.message });
   }
 };
 
-exports.deleteEquipment = async (req, res) => {
+exports.deleteGameItem = async (req, res) => {
   try {
-    const equipment = await Equipment.findByIdAndDelete(req.params.id);
-    if (!equipment) {
-      return res.status(404).json({ message: 'Equipment not found' });
+    const gameItem = await GameItem.findByIdAndDelete(req.params.id);
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Game item not found' });
     }
-    res.json({ message: 'Equipment deleted successfully' });
+    res.json({ message: 'Game item deleted successfully' });
   } catch (error) {
-    res.status(400).json({ message: 'Error deleting equipment', error: error.message });
+    res.status(400).json({ message: 'Error deleting game item', error: error.message });
   }
 };
 
-exports.sendEquipmentById = async (req, res) => {
+exports.sendGameItemToCharacter = async (req, res) => {
   try {
-    const { equipmentId, characterId } = req.params;
+    const { gameItemId, characterId } = req.params;
 
-    const equipment = await Equipment.findById(equipmentId);
-    if (!equipment) {
-      return res.status(404).json({ message: 'Equipment not found' });
+    const gameItem = await GameItem.findById(gameItemId);
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Game item not found' });
     }
     
     const character = await Character.findById(characterId);
@@ -431,35 +466,13 @@ exports.sendEquipmentById = async (req, res) => {
       return res.status(404).json({ message: 'Character not found' });
     }
     
-    // Добавляем оборудование к персонажу
-    character.inventory.push(equipment._id);
+    // Добавляем игровой предмет к персонажу
+    character.inventory.push({ charItem: gameItem._id, quantity: 1 });
     await character.save();
     
-    res.json({ message: 'Equipment sent to character successfully', character });
+    res.json({ message: 'Game item sent to character successfully', character });
   } catch (error) {
-    res.status(400).json({ message: 'Error sending equipment', error: error.message });
-  }
-};
-
-// Далее код файла controllers\itemController.js:
-const Item = require('../models/Item');
-
-exports.createItem = async (req, res) => {
-  try {
-    const item = new Item(req.body);
-    await item.save();
-    res.status(201).json(item);
-  } catch (error) {
-    res.status(400).json({ message: 'Error creating item', error: error.message });
-  }
-};
-
-exports.getAllItems = async (req, res) => {
-  try {
-    const items = await Item.find();
-    res.json(items);
-  } catch (error) {
-    res.status(400).json({ message: 'Error fetching items', error: error.message });
+    res.status(400).json({ message: 'Error sending game item', error: error.message });
   }
 };
 
@@ -508,7 +521,7 @@ const characterSchema = new mongoose.Schema({
     ref: 'User',
     required: true
   },
-  name: {
+  nickname: {
     type: String,
     required: true
   },
@@ -519,83 +532,136 @@ const characterSchema = new mongoose.Schema({
   },
   level: { type: Number, default: 1 },
   experience: { type: Number, default: 0 },
+  gold: { type: Number, default: 0 },
+
   // Базовые характеристики
-  strength: { type: Number, default: 10 },
-  dexterity: { type: Number, default: 10 },
-  intelligence: { type: Number, default: 10 },
-  endurance: { type: Number, default: 10 },
-  charisma: { type: Number, default: 10 },
-  // Расчетные характеристики (будут вычисляться)
-  damage: { type: Number, default: 0 },
-  armor: { type: Number, default: 0 },
-  criticalChance: { type: Number, default: 0 },
-  criticalDamage: { type: Number, default: 0 },
-  dodge: { type: Number, default: 0 },
-  healthRegen: { type: Number, default: 0 },
+  baseStrength: { type: Number, default: 10 },
+  baseDexterity: { type: Number, default: 10 },
+  baseIntelligence: { type: Number, default: 10 },
+  baseEndurance: { type: Number, default: 10 },
+  baseCharisma: { type: Number, default: 10 },
+
+  // Здоровье
   health: { type: Number, default: 100 },
-  counterAttack: { type: Number, default: 0 },
+  maxHealth: { type: Number, default: 100 },
+  lastHealthUpdate: { type: Date, default: Date.now },
+
   // Очки характеристик
   availablePoints: { type: Number, default: 5 },
-  finalDistribution: { type: Boolean, default: false },
+
   // Инвентарь
   inventory: [{
-    item: { type: mongoose.Schema.Types.ObjectId, ref: 'Item' },
+    charItem: { type: mongoose.Schema.Types.ObjectId, ref: 'CharItem' },
     quantity: { type: Number, default: 1 }
   }],
+
   // Экипировка
   equipment: {
-    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' },
-    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'Equipment' }
+    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
+    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' }
   },
+
   version: { type: Number, default: 0 }
 }, { timestamps: true });
 
-// Функция для пересчета характеристик
-characterSchema.methods.recalculateStats = function() {
-  // Базовые значения
-  this.damage = this.strength * 2;
-  this.armor = this.endurance;
-  this.criticalChance = this.dexterity * 0.1;
-  this.criticalDamage = 150 + this.strength;
-  this.dodge = this.dexterity * 0.2;
-  this.healthRegen = this.endurance * 0.1;
-  this.health = 100 + (this.endurance * 10);
-  this.counterAttack = this.dexterity * 0.5;
+// Виртуальное поле для проверки завершения распределения очков
+characterSchema.virtual('finalDistribution').get(function () {
+  return this.availablePoints === 0;
+});
 
-  // Добавление бонусов от экипировки
-  Object.values(this.equipment).forEach(item => {
-    if (item && item.stats) {
-      this.damage += item.stats.damage || 0;
-      this.armor += item.stats.armor || 0;
-      this.criticalChance += item.stats.criticalChance || 0;
-      this.criticalDamage += item.stats.criticalDamage || 0;
-      this.dodge += item.stats.dodge || 0;
-      this.healthRegen += item.stats.healthRegen || 0;
-      this.health += item.stats.health || 0;
-      this.counterAttack += item.stats.counterAttack || 0;
-    }
-  });
+// Метод для получения текущего здоровья с учетом регенерации
+characterSchema.methods.getCurrentHealth = function () {
+  const now = new Date();
+  const timeSinceLastUpdate = (now - this.lastHealthUpdate) / 1000 / 60; // в минутах
+  const regenAmount = Math.min(timeSinceLastUpdate * (this.maxHealth / 30), this.maxHealth - this.health);
+  const currentHealth = Math.min(this.health + regenAmount, this.maxHealth);
+
+  // Округляем здоровье до двух знаков после запятой
+  return Math.round(currentHealth * 100) / 100;
 };
 
-characterSchema.pre('save', function(next) {
-  this.version += 1;
-  this.recalculateStats();
+characterSchema.methods.updateHealth = function () {
+  this.health = this.getCurrentHealth();
+  this.lastHealthUpdate = new Date();
+};
+
+characterSchema.virtual('calculatedStats').get(function () {
+  // Здесь будет логика расчета всех характеристик с учетом базовых параметров, экипировки и навыков
+  return {
+    strength: this.baseStrength, // + бонусы от экипировки и навыков
+    dexterity: this.baseDexterity, // + бонусы
+    intelligence: this.baseIntelligence, // + бонусы
+    endurance: this.baseEndurance, // + бонусы
+    charisma: this.baseCharisma, // + бонусы
+    health: this.getCurrentHealth(),
+    maxHealth: this.maxHealth,
+    damage: this.baseStrength * 2, // Пример расчета урона
+    armor: this.baseEndurance, // Пример расчета брони
+    criticalChance: this.baseDexterity * 0.1, // Пример расчета шанса крита
+    criticalDamage: 150 + this.baseStrength, // Пример расчета силы крита
+    dodge: this.baseDexterity * 0.2, // Пример расчета уворота
+    healthRegen: this.baseEndurance * 0.1, // Пример расчета регенерации здоровья
+    counterAttack: this.baseDexterity * 0.5 // Пример расчета шанса контратаки
+  };
+});
+
+characterSchema.methods.getMaxSkillSlots = function () {
+  return Math.floor(this.level / 5) + 3; // Базовые 3 слота + 1 слот каждые 5 уровней
+};
+
+characterSchema.pre('save', function (next) {
+  if (this.isModified('baseStrength') ||
+    this.isModified('baseDexterity') ||
+    this.isModified('baseIntelligence') ||
+    this.isModified('baseEndurance') ||
+    this.isModified('baseCharisma') ||
+    this.isModified('equipment') ||
+    this.isModified('inventory')) {
+    this.version += 1;
+  }
+  this.updateHealth();
   next();
 });
 
 module.exports = mongoose.model('Character', characterSchema);
 
-// Далее код файла models\Equipment.js:
+// Далее код файла models\CharItem.js:
 const mongoose = require('mongoose');
 
-const equipmentSchema = new mongoose.Schema({
+const charItemSchema = new mongoose.Schema({
+  name: { type: String, required: true },
+  type: { 
+    type: String, 
+    enum: ['weapon', 'armor', 'accessory'], 
+    required: true 
+  },
+  slot: { 
+    type: String, 
+    enum: ['hand', 'body', 'head', 'feet', 'accessory'], 
+    required: true 
+  },
+  stats: {
+    strength: { type: Number, default: 0 },
+    dexterity: { type: Number, default: 0 },
+    intelligence: { type: Number, default: 0 },
+    health: { type: Number, default: 0 }
+  },
+  description: { type: String }
+});
+
+module.exports = mongoose.model('CharItem', charItemSchema);
+
+// Далее код файла models\GameItem.js:
+const mongoose = require('mongoose');
+
+const gameItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { 
     type: String, 
@@ -626,33 +692,7 @@ const equipmentSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Equipment', equipmentSchema);
-
-// Далее код файла models\Item.js:
-const mongoose = require('mongoose');
-
-const itemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['weapon', 'armor', 'accessory'], 
-    required: true 
-  },
-  slot: { 
-    type: String, 
-    enum: ['hand', 'body', 'head', 'feet', 'accessory'], 
-    required: true 
-  },
-  stats: {
-    strength: { type: Number, default: 0 },
-    dexterity: { type: Number, default: 0 },
-    intelligence: { type: Number, default: 0 },
-    health: { type: Number, default: 0 }
-  },
-  description: { type: String }
-});
-
-module.exports = mongoose.model('Item', itemSchema);
+module.exports = mongoose.model('GameItem', gameItemSchema);
 
 // Далее код файла models\User.js:
 // models/User.js
@@ -706,8 +746,8 @@ const {
   createCharacter, 
   getCharacter, 
   updateCharacter, 
-  addItemToInventory, 
-  equipItem 
+  addCharItemToInventory, 
+  equipCharItem 
 } = require('../controllers/characterController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -716,44 +756,43 @@ const router = express.Router();
 router.post('/', authMiddleware, createCharacter);
 router.get('/', authMiddleware, getCharacter);
 router.put('/', authMiddleware, updateCharacter);
-router.post('/inventory', authMiddleware, addItemToInventory);
-router.post('/equip', authMiddleware, equipItem);
+router.post('/inventory', authMiddleware, addCharItemToInventory);
+router.post('/equip', authMiddleware, equipCharItem);
 
 module.exports = router;
 
-// Далее код файла routes\equipmentRoutes.js:
-// routes/equipmentRoutes.js
+// Далее код файла routes\charItemRoutes.js:
+const express = require('express');
+const { createCharItem, getAllCharItems } = require('../controllers/charItemController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+const router = express.Router();
+
+router.post('/', authMiddleware, createCharItem);
+router.get('/', authMiddleware, getAllCharItems);
+
+module.exports = router;
+
+// Далее код файла routes\gameItemRoutes.js:
 const express = require('express');
 const router = express.Router();
 const { 
-  createEquipment, 
-  getAllEquipment, 
-  getEquipmentById, 
-  updateEquipment, 
-  deleteEquipment,
-  sendEquipmentById
-} = require('../controllers/equipmentController');
+  createGameItem, 
+  getAllGameItems, 
+  getGameItemById, 
+  updateGameItem, 
+  deleteGameItem,
+  sendGameItemToCharacter
+} = require('../controllers/gameItemController');
 const authMiddleware = require('../middlewares/authMiddleware');
 const adminMiddleware = require('../middlewares/adminMiddleware');
 
-router.post('/', authMiddleware, adminMiddleware, createEquipment);
-router.get('/', authMiddleware, getAllEquipment);
-router.get('/:id', authMiddleware, getEquipmentById);
-router.put('/:id', authMiddleware, adminMiddleware, updateEquipment);
-router.delete('/:id', authMiddleware, adminMiddleware, deleteEquipment);
-router.post('/send/:equipmentId/:characterId', authMiddleware, adminMiddleware, sendEquipmentById);
-
-module.exports = router;
-
-// Далее код файла routes\itemRoutes.js:
-const express = require('express');
-const { createItem, getAllItems } = require('../controllers/itemController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
-const router = express.Router();
-
-router.post('/', authMiddleware, createItem);
-router.get('/', authMiddleware, getAllItems);
+router.post('/', authMiddleware, adminMiddleware, createGameItem);
+router.get('/', authMiddleware, getAllGameItems);
+router.get('/:id', authMiddleware, getGameItemById);
+router.put('/:id', authMiddleware, adminMiddleware, updateGameItem);
+router.delete('/:id', authMiddleware, adminMiddleware, deleteGameItem);
+router.post('/send/:gameItemId/:characterId', authMiddleware, adminMiddleware, sendGameItemToCharacter);
 
 module.exports = router;
 

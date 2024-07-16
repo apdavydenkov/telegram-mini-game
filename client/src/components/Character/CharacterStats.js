@@ -19,7 +19,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     if (updatedCharacter.availablePoints > 0) {
       const nextVersionCharacter = {
         ...updatedCharacter,
-        [stat]: updatedCharacter[stat] + 1,
+        [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: updatedCharacter[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
         availablePoints: updatedCharacter.availablePoints - 1
       };
 
@@ -33,7 +33,6 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         setError(null);
       } catch (error) {
         if (error.response && error.response.status === 409) {
-          // Конфликт версий, получаем актуальные данные и пробуем снова
           try {
             const refreshResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
               headers: { Authorization: `Bearer ${token}` }
@@ -53,19 +52,23 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     }
   };
 
-  const StatParam = ({ icon: Icon, label, value, stat, isAdjustable = true }) => (
+  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => (
     <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
       <span className="flex items-center text-gray-700">
         <Icon className="mr-2 text-blue-500" />
         {label}:
       </span>
       <div className="flex items-center">
-        <span className="font-semibold text-blue-600 mx-2">{value}</span>
-        {isAdjustable && !updatedCharacter.finalDistribution && (
+        <span className="font-semibold text-blue-600 mx-2">
+          {maxValue !== undefined
+            ? `${Math.round(value || 0)}/${Math.round(maxValue || 0)}`
+            : Math.round(value || 0)
+          }
+        </span>
+        {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
           <button
             onClick={() => handleStatIncrease(stat)}
-            disabled={updatedCharacter.availablePoints <= 0}
-            className="w-6 h-6 bg-green-500 text-white rounded disabled:bg-gray-300"
+            className="w-6 h-6 bg-green-500 text-white rounded"
           >
             +
           </button>
@@ -74,18 +77,32 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     </div>
   );
 
+  if (!updatedCharacter || !updatedCharacter.calculatedStats) {
+    return <div>Загрузка характеристик...</div>;
+  }
+
+  const { calculatedStats } = updatedCharacter;
+
+  console.log('Health:', calculatedStats.health);
+  console.log('MaxHealth:', calculatedStats.maxHealth);
+
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
       {error && <div className="col-span-2 text-red-500">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.strength} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.dexterity} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.intelligence} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.endurance} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.charisma} stat="charisma" />
-        <StatParam icon={FaHeart} label="Здоровье" value={updatedCharacter.health} isAdjustable={false} />
-        {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
+        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.baseStrength} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.baseDexterity} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.baseIntelligence} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.baseEndurance} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.baseCharisma} stat="charisma" />
+        <StatParam
+          icon={FaHeart}
+          label="Здоровье"
+          value={calculatedStats.health}
+          maxValue={calculatedStats.maxHealth}
+          isAdjustable={false}
+        />       {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
             Доступные навыки: {updatedCharacter.availablePoints}
@@ -94,14 +111,13 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={updatedCharacter.damage} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={updatedCharacter.armor} isAdjustable={false} />
-        <StatParam icon={FaBullseye} label="Шанс крита" value={`${updatedCharacter.criticalChance.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBolt} label="Сила крита" value={`${updatedCharacter.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaWind} label="Уворот" value={`${updatedCharacter.dodge.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${updatedCharacter.counterAttack.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${updatedCharacter.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
-      </div>
+        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage || 0} isAdjustable={false} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor || 0} isAdjustable={false} />
+        <StatParam icon={FaBullseye} label="Шанс крита" value={`${(calculatedStats.criticalChance || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBolt} label="Сила крита" value={`${(calculatedStats.criticalDamage || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaWind} label="Уворот" value={`${(calculatedStats.dodge || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${(calculatedStats.counterAttack || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegenRate.toFixed(2)}/сек`} isAdjustable={false} />      </div>
     </div>
   );
 };

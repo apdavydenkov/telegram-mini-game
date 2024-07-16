@@ -17,8 +17,8 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
 
   useEffect(() => {
-    if (inventoryItem && inventoryItem._id) {
-      fetchItemDetails(inventoryItem._id);
+    if (inventoryItem && inventoryItem.charItem) {
+      fetchItemDetails(inventoryItem.charItem);
     }
   }, [inventoryItem]);
 
@@ -29,7 +29,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
         console.log('Токен отсутствует.');
         return;
       }
-      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/${id}`, {
+      const response = await axios.get(`${APP_SERVER_URL}/api/charItem/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItemDetails(response.data);
@@ -44,7 +44,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
         itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
       }`}
       style={itemDetails ? { backgroundImage: `url(${itemDetails.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.type)}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem.charItem, itemDetails?.type)}
     >
       {itemDetails && (
         <>
@@ -61,37 +61,60 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
 
 const Inventory = ({ inventory, onClickInventoryItem }) => {
   const [activeCategory, setActiveCategory] = useState('all');
+  const [filteredInventory, setFilteredInventory] = useState([]);
 
   const categories = [
     { id: 'all', name: 'Все' },
-    { id: 'equipment', name: 'Экипировка' },
-    { id: 'resource', name: 'Ресурсы' },
-    { id: 'misc', name: 'Разное' },
+    { id: 'weapon', name: 'Оружие' },
+    { id: 'armor', name: 'Броня' },
+    { id: 'accessory', name: 'Аксессуары' },
+    { id: 'consumable', name: 'Расходники' },
   ];
 
-  const filteredInventory = inventory.filter(inventoryItem => 
-    activeCategory === 'all' || inventoryItem.type === activeCategory
-  );
+  useEffect(() => {
+    filterInventory();
+  }, [inventory, activeCategory]);
+
+  const filterInventory = () => {
+    if (activeCategory === 'all') {
+      setFilteredInventory(inventory);
+    } else {
+      const filtered = inventory.filter(item => item.type === activeCategory);
+      setFilteredInventory(filtered);
+    }
+  };
+
+  const handleCategoryChange = (categoryId) => {
+    setActiveCategory(categoryId);
+  };
 
   return (
-    <div>
-      <div className="flex mt-4">
+    <div className="bg-white shadow-md rounded-lg p-4">
+      <h2 className="text-2xl font-bold mb-4">Инвентарь</h2>
+      <div className="flex mb-4">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
             id={category.id}
             name={category.name}
             active={activeCategory === category.id}
-            onClick={setActiveCategory}
+            onClick={handleCategoryChange}
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
-        {filteredInventory.map((inventoryItem, index) => (
-          <InventorySlot key={index} inventoryItem={inventoryItem} onClickInventoryItem={onClickInventoryItem} />
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+        {filteredInventory.map((item, index) => (
+          <InventorySlot 
+            key={`${item.charItem}-${index}`}
+            inventoryItem={item} 
+            onClickInventoryItem={onClickInventoryItem}
+          />
         ))}
-        {[...Array(24 - filteredInventory.length)].map((_, index) => (
-          <InventorySlot key={`empty-${index}`} />
+        {Array.from({ length: Math.max(0, 40 - filteredInventory.length) }).map((_, index) => (
+          <div 
+            key={`empty-${index}`}
+            className="aspect-square border border-gray-200 rounded-md"
+          />
         ))}
       </div>
     </div>

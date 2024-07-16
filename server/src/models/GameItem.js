@@ -1,6 +1,6 @@
 const mongoose = require('mongoose');
 
-const equipmentSchema = new mongoose.Schema({
+const gameItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { 
     type: String, 
@@ -31,4 +31,4 @@ const equipmentSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('Equipment', equipmentSchema);
+module.exports = mongoose.model('GameItem', gameItemSchema);

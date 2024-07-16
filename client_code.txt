@@ -93,7 +93,7 @@ const reportWebVitals = onPerfEntry => {
 export default reportWebVitals;
 
 
-// Далее код файла components\Admin\AdminEquipmentForm.js:
+// Далее код файла components\Admin\AdminGameItemForm.js:
 import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
@@ -128,10 +128,10 @@ const SelectField = ({ label, name, value, onChange, options }) => (
   </div>
 );
 
-const AdminEquipmentForm = () => {
+const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  const [equipment, setEquipment] = useState({
+  const [gameItem, setGameItem] = useState({
     name: '', type: '', rarity: '', minLevel: 1, image: '',
     stats: {
       strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
@@ -139,14 +139,15 @@ const AdminEquipmentForm = () => {
       healthRegen: 0, health: 0, counterAttack: 0
     }
   });
+  const [error, setError] = useState('');
 
   useEffect(() => {
     if (id) {
-      fetchEquipment();
+      fetchGameItem();
     }
   }, [id]);
 
-  const fetchEquipment = async () => {
+  const fetchGameItem = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -154,33 +155,30 @@ const AdminEquipmentForm = () => {
         navigate('/login');
         return;
       }
-      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/${id}`, {
+      const response = await axios.get(`${APP_SERVER_URL}/api/gameItem/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setEquipment(response.data);
+      setGameItem(response.data);
     } catch (error) {
-      console.error('Ошибка получения предмета:', error.response?.data || error.message);
+      console.error('Ошибка получения игрового предмета:', error.response?.data || error.message);
+      setError('Ошибка загрузки данных игрового предмета. Пожалуйста, попробуйте еще раз.');
 
-      // Проверяем, является ли ошибка связанной с аутентификацией
       if (error.response && error.response.status === 401) {
         console.log('Токен недействителен. Перенаправление на страницу входа.');
-        localStorage.removeItem('token'); // Удаляем недействительный токен
-        navigate('/login'); // Перенаправляем на страницу входа
-      } else {
-        // Обработка других типов ошибок
-        // Например, можно показать пользователю сообщение об ошибке
+        localStorage.removeItem('token');
+        navigate('/login');
       }
     }
   };
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setEquipment(prev => ({ ...prev, [name]: value }));
+    setGameItem(prev => ({ ...prev, [name]: value }));
   };
 
   const handleStatsChange = (e) => {
     const { name, value } = e.target;
-    setEquipment(prev => ({
+    setGameItem(prev => ({
       ...prev,
       stats: { ...prev.stats, [name]: parseFloat(value) }
     }));
@@ -188,63 +186,77 @@ const AdminEquipmentForm = () => {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setError('');
     try {
       const token = localStorage.getItem('token');
+      if (!token) {
+        console.log('Токен отсутствует. Перенаправление на страницу входа.');
+        navigate('/login');
+        return;
+      }
       if (id) {
-        await axios.put(`${APP_SERVER_URL}/api/equipment/${id}`, equipment, {
+        await axios.put(`${APP_SERVER_URL}/api/gameItem/${id}`, gameItem, {
           headers: { Authorization: `Bearer ${token}` }
         });
       } else {
-        await axios.post(`${APP_SERVER_URL}/api/equipment`, equipment, {
+        await axios.post(`${APP_SERVER_URL}/api/gameItem`, gameItem, {
           headers: { Authorization: `Bearer ${token}` }
         });
       }
-      navigate('/admin/equipment');
+      navigate('/admin/gameItem');
     } catch (error) {
-      console.error('Ошибка сохранения предмета:', error.response?.data || error.message);
+      console.error('Ошибка сохранения игрового предмета:', error.response?.data || error.message);
+      setError('Ошибка сохранения игрового предмета. Пожалуйста, проверьте данные и попробуйте еще раз.');
+      
+      if (error.response && error.response.status === 401) {
+        console.log('Токен недействителен. Перенаправление на страницу входа.');
+        localStorage.removeItem('token');
+        navigate('/login');
+      }
     }
   };
 
   return (
     <div className="container mx-auto px-4">
       <div className="bg-white shadow-md rounded px-8 pt-6 pb-8 mb-4">
-        <h2 className="text-2xl font-bold mb-4">Создание предметов - Экипировка</h2>
+        <h2 className="text-2xl font-bold mb-4">{id ? 'Редактирование' : 'Создание'} игрового предмета</h2>
+        {error && <div className="mb-4 text-red-500">{error}</div>}
         <form onSubmit={handleSubmit} className="grid grid-cols-3 gap-4">
           <div>
-            <InputField label="Название" name="name" value={equipment.name} onChange={handleChange} />
+            <InputField label="Название" name="name" value={gameItem.name} onChange={handleChange} />
             <SelectField
               label="Тип"
               name="type"
-              value={equipment.type}
+              value={gameItem.type}
               onChange={handleChange}
               options={['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots']}
             />
             <SelectField
               label="Редкость"
               name="rarity"
-              value={equipment.rarity}
+              value={gameItem.rarity}
               onChange={handleChange}
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
-            <InputField label="Мин. уровень" name="minLevel" value={equipment.minLevel} onChange={handleChange} type="number" />
-            <InputField label="Изображение" name="image" value={equipment.image} onChange={handleChange} />
+            <InputField label="Мин. уровень" name="minLevel" value={gameItem.minLevel} onChange={handleChange} type="number" />
+            <InputField label="Изображение" name="image" value={gameItem.image} onChange={handleChange} />
           </div>
           <div>
-            <InputField label="Сила" name="strength" value={equipment.stats.strength} onChange={handleStatsChange} type="number" />
-            <InputField label="Ловкость" name="dexterity" value={equipment.stats.dexterity} onChange={handleStatsChange} type="number" />
-            <InputField label="Интеллект" name="intelligence" value={equipment.stats.intelligence} onChange={handleStatsChange} type="number" />
-            <InputField label="Выносливость" name="endurance" value={equipment.stats.endurance} onChange={handleStatsChange} type="number" />
-            <InputField label="Харизма" name="charisma" value={equipment.stats.charisma} onChange={handleStatsChange} type="number" />
+            <InputField label="Сила" name="strength" value={gameItem.stats.strength} onChange={handleStatsChange} type="number" />
+            <InputField label="Ловкость" name="dexterity" value={gameItem.stats.dexterity} onChange={handleStatsChange} type="number" />
+            <InputField label="Интеллект" name="intelligence" value={gameItem.stats.intelligence} onChange={handleStatsChange} type="number" />
+            <InputField label="Выносливость" name="endurance" value={gameItem.stats.endurance} onChange={handleStatsChange} type="number" />
+            <InputField label="Харизма" name="charisma" value={gameItem.stats.charisma} onChange={handleStatsChange} type="number" />
           </div>
           <div>
-            <InputField label="Урон" name="damage" value={equipment.stats.damage} onChange={handleStatsChange} type="number" />
-            <InputField label="Броня" name="armor" value={equipment.stats.armor} onChange={handleStatsChange} type="number" />
-            <InputField label="Шанс крита" name="criticalChance" value={equipment.stats.criticalChance} onChange={handleStatsChange} type="number" />
-            <InputField label="Сила крита" name="criticalDamage" value={equipment.stats.criticalDamage} onChange={handleStatsChange} type="number" />
-            <InputField label="Уворот" name="dodge" value={equipment.stats.dodge} onChange={handleStatsChange} type="number" />
-            <InputField label="Контрудар" name="counterAttack" value={equipment.stats.counterAttack} onChange={handleStatsChange} type="number" />
-            <InputField label="HP" name="health" value={equipment.stats.health} onChange={handleStatsChange} type="number" />
-            <InputField label="Реген" name="healthRegen" value={equipment.stats.healthRegen} onChange={handleStatsChange} type="number" />
+            <InputField label="Урон" name="damage" value={gameItem.stats.damage} onChange={handleStatsChange} type="number" />
+            <InputField label="Броня" name="armor" value={gameItem.stats.armor} onChange={handleStatsChange} type="number" />
+            <InputField label="Шанс крита" name="criticalChance" value={gameItem.stats.criticalChance} onChange={handleStatsChange} type="number" />
+            <InputField label="Сила крита" name="criticalDamage" value={gameItem.stats.criticalDamage} onChange={handleStatsChange} type="number" />
+            <InputField label="Уворот" name="dodge" value={gameItem.stats.dodge} onChange={handleStatsChange} type="number" />
+            <InputField label="Контрудар" name="counterAttack" value={gameItem.stats.counterAttack} onChange={handleStatsChange} type="number" />
+            <InputField label="HP" name="health" value={gameItem.stats.health} onChange={handleStatsChange} type="number" />
+            <InputField label="Реген HP" name="healthRegen" value={gameItem.stats.healthRegen} onChange={handleStatsChange} type="number" />
           </div>
           <div className="col-span-3 mt-4">
             <button type="submit" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">
@@ -257,23 +269,23 @@ const AdminEquipmentForm = () => {
   );
 };
 
-export default AdminEquipmentForm;
+export default AdminGameItemForm;
 
-// Далее код файла components\Admin\AdminEquipmentList.js:
+// Далее код файла components\Admin\AdminGameItemList.js:
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
 
-const AdminEquipmentList = () => {
+const AdminGameItemList = () => {
   const navigate = useNavigate();
-  const [equipment, setEquipment] = useState([]);
+  const [gameItems, setGameItems] = useState([]);
 
   useEffect(() => {
-    fetchEquipment();
+    fetchGameItems();
   }, []);
 
-  const fetchEquipment = async () => {
+  const fetchGameItems = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -281,42 +293,42 @@ const AdminEquipmentList = () => {
         navigate('/login');
         return;
       }
-      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/`, {
+      const response = await axios.get(`${APP_SERVER_URL}/api/gameItem/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setEquipment(response.data);
+      setGameItems(response.data);
     } catch (error) {
-      console.error('Error fetching equipment:', error.response?.data || error.message);
+      console.error('Error fetching game items:', error.response?.data || error.message);
     }
   };
 
-  const handleDelete = async (equipmentId) => {
-    if (window.confirm('Are you sure you want to delete this equipment?')) {
+  const handleDelete = async (gameItemId) => {
+    if (window.confirm('Are you sure you want to delete this game item?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`${APP_SERVER_URL}/api/equipment/${equipmentId}`, {
+        await axios.delete(`${APP_SERVER_URL}/api/gameItem/${gameItemId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        fetchEquipment();
+        fetchGameItems();
       } catch (error) {
-        console.error('Error deleting equipment:', error);
+        console.error('Error deleting game item:', error);
       }
     }
   };
   
-  const handleSendEquipment = async (equipmentId) => {
-    const characterId = prompt("Enter the character ID to send the equipment to:");
+  const handleSendGameItem = async (gameItemId) => {
+    const characterId = prompt("Enter the character ID to send the game item to:");
     if (characterId) {
       try {
         const token = localStorage.getItem('token');
-        await axios.post(`${APP_SERVER_URL}/api/equipment/send/${equipmentId}/${characterId}`, 
+        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`, 
           {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        alert('Equipment sent successfully');
+        alert('Game item sent successfully');
       } catch (error) {
-        console.error('Error sending equipment:', error.response?.data || error.message);
-        alert(error.response?.data?.message || 'Error sending equipment');
+        console.error('Error sending game item:', error.response?.data || error.message);
+        alert(error.response?.data?.message || 'Error sending game item');
       }
     }
   };
@@ -324,8 +336,8 @@ const AdminEquipmentList = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">Equipment</h2>
-        <Link to="/admin/equipment/new" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
+        <h2 className="text-2xl font-semibold text-gray-800">Game Items</h2>
+        <Link to="/admin/gameItem/new" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
           Create New
         </Link>
       </div>
@@ -341,25 +353,25 @@ const AdminEquipmentList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {equipment.map((equipmentItem) => (
-              <tr key={equipmentItem._id}>
+            {gameItems.map((gameItem) => (
+              <tr key={gameItem._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10">
-                      <img className="h-10 w-10 rounded-full" src={equipmentItem.image || "https://via.placeholder.com/150"} alt={equipmentItem.name} />
+                      <img className="h-10 w-10 rounded-full" src={gameItem.image || "https://via.placeholder.com/150"} alt={gameItem.name} />
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{equipmentItem.name}</div>
+                      <div className="text-sm font-medium text-gray-900">{gameItem.name}</div>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.rarity}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.minLevel}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.rarity}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.minLevel}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Link to={`/admin/equipment/edit/${equipmentItem._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
-                  <button onClick={() => handleDelete(equipmentItem._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
-                  <button onClick={() => handleSendEquipment(equipmentItem._id)} className="text-green-600 hover:text-green-900">Send</button>
+                  <Link to={`/admin/gameItem/edit/${gameItem._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
+                  <button onClick={() => handleDelete(gameItem._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
+                  <button onClick={() => handleSendGameItem(gameItem._id)} className="text-green-600 hover:text-green-900">Send</button>
                 </td>
               </tr>
             ))}
@@ -370,13 +382,13 @@ const AdminEquipmentList = () => {
   );
 };
 
-export default AdminEquipmentList;
+export default AdminGameItemList;
 
 // Далее код файла components\Admin\AdminPanel.js:
 import React from 'react';
 import { Link, Route, Routes } from 'react-router-dom';
-import AdminEquipmentList from './AdminEquipmentList';
-import AdminEquipmentForm from './AdminEquipmentForm';
+import AdminGameItemList from './AdminGameItemList';
+import AdminGameItemForm from './AdminGameItemForm';
 
 const AdminPanel = () => {
   return (
@@ -386,17 +398,17 @@ const AdminPanel = () => {
           <h1 className="text-xl font-semibold text-gray-800">Admin Panel</h1>
         </div>
         <nav className="mt-4">
-          <Link to="/admin/equipment" className="block py-2 px-4 text-gray-600 hover:bg-gray-200 transition-colors">
-            Equipment
+          <Link to="/admin/gameItem" className="block py-2 px-4 text-gray-600 hover:bg-gray-200 transition-colors">
+            Game Items
           </Link>
           {/* Add more menu items as needed */}
         </nav>
       </aside>
       <main className="flex-1 p-8">
         <Routes>
-          <Route path="equipment" element={<AdminEquipmentList />} />
-          <Route path="equipment/new" element={<AdminEquipmentForm />} />
-          <Route path="equipment/edit/:id" element={<AdminEquipmentForm />} />
+          <Route path="gameItem" element={<AdminGameItemList />} />
+          <Route path="gameItem/new" element={<AdminGameItemForm />} />
+          <Route path="gameItem/edit/:id" element={<AdminGameItemForm />} />
         </Routes>
       </main>
     </div>
@@ -592,34 +604,41 @@ export default Register;
 import React from 'react';
 
 const Character = ({ character }) => {
-//  const expPercentage = character.experience ? (character.experience / 100) * 100 : 0;
-//  const healthPercentage = character.maxHealth ? (character.health / character.maxHealth) * 100 : 0;
+  if (!character) {
+    return <div>Загрузка персонажа...</div>;
+  }
+
+  const { calculatedStats } = character;
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
       <div className="grid grid-cols-12 grid-rows-17 gap-1">
         <div className="col-span-12 text-center text-xl font-bold flex items-center justify-center">
-          {character.name} 
+          {character.nickname}
           <span className="ml-2 bg-blue-500 text-white rounded-md w-6 h-6 flex items-center justify-center text-sm">
             {character.level}
           </span>
         </div>
-        
+
         {/* EXP Bar */}
-        <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden">
-          <div 
-            className="h-full bg-yellow-400 flex items-center justify-center text-xs font-bold"
-          >
+        <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
+          <div
+            className="h-full bg-yellow-400 absolute left-0 top-0"
+            style={{ width: `${(character.experience / 100) * 100}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold">
             EXP: {character.experience}/100
           </div>
         </div>
-        
+
         {/* HP Bar */}
-        <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden">
-          <div 
-            className="h-full bg-red-500 flex items-center justify-center text-xs font-bold text-white"
-          >
-            HP: {character.health}/{character.maxHealth}
+        <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
+          <div
+            className="h-full bg-red-500 absolute left-0 top-0"
+            style={{ width: `${((calculatedStats?.health || 0) / (calculatedStats?.maxHealth || 1)) * 100}%` }}
+          />
+          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+            HP: {Math.round(calculatedStats?.health || 0)}/{calculatedStats?.maxHealth || 0}
           </div>
         </div>
 
@@ -698,6 +717,12 @@ const Character = ({ character }) => {
         <div className="col-span-2 row-span-2 col-start-11 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
           <img src="https://placehold.co/40x40?text=Skill+6" alt="Skill 6" className="w-full h-full object-cover" />
         </div>
+
+        {/* Gold */}
+        <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
+          <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
+        </div>
+
       </div>
     </div>
   );
@@ -711,37 +736,33 @@ import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterCreate = ({ onCharacterCreated }) => {
-  const [name, setName] = useState('');
+  const [nickname, setNickname] = useState('');
   const [characterClass, setCharacterClass] = useState('Warrior');
-  const [strength, setStrength] = useState(10);
-  const [dexterity, setDexterity] = useState(10);
-  const [intelligence, setIntelligence] = useState(10);
-  const [endurance, setEndurance] = useState(10);
-  const [charisma, setCharisma] = useState(10);
+  const [baseStrength, setBaseStrength] = useState(10);
+  const [baseDexterity, setBaseDexterity] = useState(10);
+  const [baseIntelligence, setBaseIntelligence] = useState(10);
+  const [baseEndurance, setBaseEndurance] = useState(10);
+  const [baseCharisma, setBaseCharisma] = useState(10);
   const [availablePoints, setAvailablePoints] = useState(5);
 
   const handleStatChange = (stat, value) => {
     if (availablePoints > 0 || value < 0) {
-      switch (stat) {
-        case 'strength':
-          setStrength(prev => Math.max(10, prev + value));
-          break;
-        case 'dexterity':
-          setDexterity(prev => Math.max(10, prev + value));
-          break;
-        case 'intelligence':
-          setIntelligence(prev => Math.max(10, prev + value));
-          break;
-        case 'endurance':
-          setEndurance(prev => Math.max(10, prev + value));
-          break;
-        case 'charisma':
-          setCharisma(prev => Math.max(10, prev + value));
-          break;
-        default:
-          break;
+      const statSetters = {
+        baseStrength: setBaseStrength,
+        baseDexterity: setBaseDexterity,
+        baseIntelligence: setBaseIntelligence,
+        baseEndurance: setBaseEndurance,
+        baseCharisma: setBaseCharisma
+      };
+
+      const currentValue = {
+        baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma
+      }[stat];
+
+      if (statSetters[stat]) {
+        statSetters[stat](Math.max(10, currentValue + value));
+        setAvailablePoints(prev => prev - value);
       }
-      setAvailablePoints(prev => prev - value);
     }
   };
 
@@ -750,7 +771,7 @@ const CharacterCreate = ({ onCharacterCreated }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${APP_SERVER_URL}/api/character`,
-        { name, class: characterClass, strength, dexterity, intelligence, endurance, charisma },
+        { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       onCharacterCreated(response.data);
@@ -765,9 +786,9 @@ const CharacterCreate = ({ onCharacterCreated }) => {
       <form onSubmit={handleSubmit}>
         <input
           type="text"
-          placeholder="Character Name"
-          value={name}
-          onChange={(e) => setName(e.target.value)}
+          placeholder="Character Nickname"
+          value={nickname}
+          onChange={(e) => setNickname(e.target.value)}
           className="w-full p-2 mb-4 border rounded"
           required
         />
@@ -781,9 +802,9 @@ const CharacterCreate = ({ onCharacterCreated }) => {
           <option value="Archer">Archer</option>
         </select>
         <p className="mb-2">Available points: {availablePoints}</p>
-        {['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].map((stat) => (
+        {['baseStrength', 'baseDexterity', 'baseIntelligence', 'baseEndurance', 'baseCharisma'].map((stat) => (
           <div key={stat} className="flex justify-between items-center mb-2">
-            <span className="capitalize">{stat}: {eval(stat)}</span>
+            <span className="capitalize">{stat.replace('base', '')}: {eval(stat)}</span>
             <div>
               <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
               <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>
@@ -820,7 +841,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     if (updatedCharacter.availablePoints > 0) {
       const nextVersionCharacter = {
         ...updatedCharacter,
-        [stat]: updatedCharacter[stat] + 1,
+        [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: updatedCharacter[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
         availablePoints: updatedCharacter.availablePoints - 1
       };
 
@@ -834,7 +855,6 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         setError(null);
       } catch (error) {
         if (error.response && error.response.status === 409) {
-          // Конфликт версий, получаем актуальные данные и пробуем снова
           try {
             const refreshResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
               headers: { Authorization: `Bearer ${token}` }
@@ -875,17 +895,23 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     </div>
   );
 
+  if (!updatedCharacter || !updatedCharacter.calculatedStats) {
+    return <div>Загрузка характеристик...</div>;
+  }
+
+  const { calculatedStats } = updatedCharacter;
+
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
       {error && <div className="col-span-2 text-red-500">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.strength} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.dexterity} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.intelligence} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.endurance} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.charisma} stat="charisma" />
-        <StatParam icon={FaHeart} label="Здоровье" value={updatedCharacter.health} isAdjustable={false} />
+        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.baseStrength} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.baseDexterity} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.baseIntelligence} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.baseEndurance} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.baseCharisma} stat="charisma" />
+        <StatParam icon={FaHeart} label="Здоровье" value={Math.round(calculatedStats.health)} maxValue={calculatedStats.maxHealth} isAdjustable={false} />
         {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
@@ -895,13 +921,13 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={updatedCharacter.damage} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={updatedCharacter.armor} isAdjustable={false} />
-        <StatParam icon={FaBullseye} label="Шанс крита" value={`${updatedCharacter.criticalChance.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBolt} label="Сила крита" value={`${updatedCharacter.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaWind} label="Уворот" value={`${updatedCharacter.dodge.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${updatedCharacter.counterAttack.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${updatedCharacter.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
+        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage || 0} isAdjustable={false} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor || 0} isAdjustable={false} />
+        <StatParam icon={FaBullseye} label="Шанс крита" value={`${(calculatedStats.criticalChance || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBolt} label="Сила крита" value={`${(calculatedStats.criticalDamage || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaWind} label="Уворот" value={`${(calculatedStats.dodge || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${(calculatedStats.counterAttack || 0).toFixed(2)}%`} isAdjustable={false} />
+        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${(calculatedStats.healthRegen || 0).toFixed(2)}/сек`} isAdjustable={false} />
       </div>
     </div>
   );
@@ -912,11 +938,13 @@ export default CharacterStats;
 // Далее код файла components\Dashboard\Dashboard.js:
 import React, { useEffect, useState } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
 import Character from '../Character/Character';
 import CharacterStats from '../Character/CharacterStats';
 import CreateCharacter from '../Character/CharacterCreate';
 import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
+import { APP_SERVER_URL } from '../../config/config';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -938,40 +966,48 @@ const TabContent = ({ children }) => (
 const Dashboard = () => {
   const [user, setUser] = useState(null);
   const [character, setCharacter] = useState(null);
-  const [activeTab, setActiveTab] = useState('charactersats');
+  const [activeTab, setActiveTab] = useState('characterstats');
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchUserData();
+    const intervalId = setInterval(fetchUserData, 5000); // Обновление каждые 5 секунд
+
+    return () => clearInterval(intervalId);
   }, []);
 
   const fetchUserData = async () => {
     const token = localStorage.getItem('token');
     if (token) {
       try {
-        console.log('Получение данных пользователя...');
-        const userResponse = await axios.get('http://localhost:5000/api/auth/me', {
+        setError(null);
+        const userResponse = await axios.get(`${APP_SERVER_URL}/api/auth/me`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        console.log('Данные пользователя получены:', userResponse.data);
         setUser(userResponse.data);
 
         if (userResponse.data.hasCharacter) {
-          console.log('Получение данных персонажа...');
-          const characterResponse = await axios.get('http://localhost:5000/api/character', {
+          const characterResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
             headers: { Authorization: `Bearer ${token}` }
           });
-          console.log('Данные персонажа получены:', characterResponse.data);
           setCharacter(characterResponse.data);
         }
       } catch (error) {
         console.error('Ошибка получения данных:', error.response?.data || error.message);
+        setError('Ошибка получения данных. Пожалуйста, попробуйте позже.');
+        if (error.response && error.response.status === 401) {
+          localStorage.removeItem('token');
+          navigate('/login');
+        }
       } finally {
         setLoading(false);
       }
     } else {
-      console.error('Токен не найден в localStorage');
+      setError('Необходима авторизация');
       setLoading(false);
+      navigate('/login');
     }
   };
 
@@ -982,55 +1018,69 @@ const Dashboard = () => {
   const handleEquipItem = async (itemId, slot) => {
     try {
       const token = localStorage.getItem('token');
-      const response = await axios.post('http://localhost:5000/api/character/equip', 
+      const response = await axios.post(`${APP_SERVER_URL}/api/character/equip`,
         { itemId, slot },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCharacter(response.data);
     } catch (error) {
       console.error('Ошибка экипировки предмета:', error);
+      setError('Ошибка экипировки предмета. Пожалуйста, попробуйте снова.');
     }
   };
 
-  const handleCharacterCreated = async (nextVersionCharacter) => {
-    setCharacter(nextVersionCharacter);
+  const handleCharacterCreated = async (newCharacter) => {
+    setCharacter(newCharacter);
     // Обновляем данные пользователя, чтобы отразить создание персонажа
-    const updatedUser = { ...user, hasCharacter: true };
-    setUser(updatedUser);
-    // Здесь можно также отправить запрос на сервер для обновления данных пользователя
+    setUser(prevUser => ({ ...prevUser, hasCharacter: true }));
+    // Обновляем данные на сервере
+    try {
+      const token = localStorage.getItem('token');
+      await axios.put(`${APP_SERVER_URL}/api/auth/update`,
+        { hasCharacter: true },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+    } catch (error) {
+      console.error('Ошибка обновления данных пользователя:', error);
+      setError('Ошибка обновления данных пользователя. Пожалуйста, обновите страницу.');
+    }
   };
 
   if (loading) {
     return <div className="text-center p-4">Загрузка...</div>;
   }
 
+  if (error) {
+    return <div className="text-center p-4 text-red-500">{error}</div>;
+  }
+
   if (!user) {
     return <div className="text-center p-4">Необходима авторизация</div>;
   }
 
-  if (!character) {
-    return (
-      <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-        <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
-        <CreateCharacter onCharacterCreated={handleCharacterCreated} />
-      </div>
-    );
-  }
-
   return (
     <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-      <Character character={character} />
-      
-      <div className="flex mt-4">
-        <Tab label="Характеристики" active={activeTab === 'charactersats'} onClick={() => setActiveTab('charactersats')} />
-        <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
-        <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
-      </div>
-      <TabContent>
-        {activeTab === 'charactersats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} showDetailedStats={true} />}
-        {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
-        {activeTab === 'skills' && <Skills skills={character.skills || []} />}
-      </TabContent>
+      {character ? (
+        <>
+          <Character character={character} />
+
+          <div className="flex mt-4">
+            <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
+            <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+            <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
+          </div>
+          <TabContent>
+            {activeTab === 'characterstats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} />}
+            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
+            {activeTab === 'skills' && <Skills skills={character.skills || []} />}
+          </TabContent>
+        </>
+      ) : (
+        <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
+          <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+        </div>
+      )}
     </div>
   );
 };
@@ -1057,8 +1107,8 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
 
   useEffect(() => {
-    if (inventoryItem && inventoryItem._id) {
-      fetchItemDetails(inventoryItem._id);
+    if (inventoryItem && inventoryItem.charItem) {
+      fetchItemDetails(inventoryItem.charItem);
     }
   }, [inventoryItem]);
 
@@ -1069,7 +1119,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
         console.log('Токен отсутствует.');
         return;
       }
-      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/${id}`, {
+      const response = await axios.get(`${APP_SERVER_URL}/api/charItem/${id}`, {
         headers: { Authorization: `Bearer ${token}` }
       });
       setItemDetails(response.data);
@@ -1084,7 +1134,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
         itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
       }`}
       style={itemDetails ? { backgroundImage: `url(${itemDetails.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.type)}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem.charItem, itemDetails?.type)}
     >
       {itemDetails && (
         <>
@@ -1101,37 +1151,60 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
 
 const Inventory = ({ inventory, onClickInventoryItem }) => {
   const [activeCategory, setActiveCategory] = useState('all');
+  const [filteredInventory, setFilteredInventory] = useState([]);
 
   const categories = [
     { id: 'all', name: 'Все' },
-    { id: 'equipment', name: 'Экипировка' },
-    { id: 'resource', name: 'Ресурсы' },
-    { id: 'misc', name: 'Разное' },
+    { id: 'weapon', name: 'Оружие' },
+    { id: 'armor', name: 'Броня' },
+    { id: 'accessory', name: 'Аксессуары' },
+    { id: 'consumable', name: 'Расходники' },
   ];
 
-  const filteredInventory = inventory.filter(inventoryItem => 
-    activeCategory === 'all' || inventoryItem.type === activeCategory
-  );
+  useEffect(() => {
+    filterInventory();
+  }, [inventory, activeCategory]);
+
+  const filterInventory = () => {
+    if (activeCategory === 'all') {
+      setFilteredInventory(inventory);
+    } else {
+      const filtered = inventory.filter(item => item.type === activeCategory);
+      setFilteredInventory(filtered);
+    }
+  };
+
+  const handleCategoryChange = (categoryId) => {
+    setActiveCategory(categoryId);
+  };
 
   return (
-    <div>
-      <div className="flex mt-4">
+    <div className="bg-white shadow-md rounded-lg p-4">
+      <h2 className="text-2xl font-bold mb-4">Инвентарь</h2>
+      <div className="flex mb-4">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
             id={category.id}
             name={category.name}
             active={activeCategory === category.id}
-            onClick={setActiveCategory}
+            onClick={handleCategoryChange}
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
-        {filteredInventory.map((inventoryItem, index) => (
-          <InventorySlot key={index} inventoryItem={inventoryItem} onClickInventoryItem={onClickInventoryItem} />
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
+        {filteredInventory.map((item, index) => (
+          <InventorySlot 
+            key={`${item.charItem}-${index}`}
+            inventoryItem={item} 
+            onClickInventoryItem={onClickInventoryItem}
+          />
         ))}
-        {[...Array(24 - filteredInventory.length)].map((_, index) => (
-          <InventorySlot key={`empty-${index}`} />
+        {Array.from({ length: Math.max(0, 40 - filteredInventory.length) }).map((_, index) => (
+          <div 
+            key={`empty-${index}`}
+            className="aspect-square border border-gray-200 rounded-md"
+          />
         ))}
       </div>
     </div>

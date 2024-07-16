@@ -3,15 +3,15 @@ import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
 
-const AdminEquipmentList = () => {
+const AdminGameItemList = () => {
   const navigate = useNavigate();
-  const [equipment, setEquipment] = useState([]);
+  const [gameItems, setGameItems] = useState([]);
 
   useEffect(() => {
-    fetchEquipment();
+    fetchGameItems();
   }, []);
 
-  const fetchEquipment = async () => {
+  const fetchGameItems = async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -19,42 +19,42 @@ const AdminEquipmentList = () => {
         navigate('/login');
         return;
       }
-      const response = await axios.get(`${APP_SERVER_URL}/api/equipment/`, {
+      const response = await axios.get(`${APP_SERVER_URL}/api/gameItem/`, {
         headers: { Authorization: `Bearer ${token}` }
       });
-      setEquipment(response.data);
+      setGameItems(response.data);
     } catch (error) {
-      console.error('Error fetching equipment:', error.response?.data || error.message);
+      console.error('Error fetching game items:', error.response?.data || error.message);
     }
   };
 
-  const handleDelete = async (equipmentId) => {
-    if (window.confirm('Are you sure you want to delete this equipment?')) {
+  const handleDelete = async (gameItemId) => {
+    if (window.confirm('Are you sure you want to delete this game item?')) {
       try {
         const token = localStorage.getItem('token');
-        await axios.delete(`${APP_SERVER_URL}/api/equipment/${equipmentId}`, {
+        await axios.delete(`${APP_SERVER_URL}/api/gameItem/${gameItemId}`, {
           headers: { Authorization: `Bearer ${token}` }
         });
-        fetchEquipment();
+        fetchGameItems();
       } catch (error) {
-        console.error('Error deleting equipment:', error);
+        console.error('Error deleting game item:', error);
       }
     }
   };
   
-  const handleSendEquipment = async (equipmentId) => {
-    const characterId = prompt("Enter the character ID to send the equipment to:");
+  const handleSendGameItem = async (gameItemId) => {
+    const characterId = prompt("Enter the character ID to send the game item to:");
     if (characterId) {
       try {
         const token = localStorage.getItem('token');
-        await axios.post(`${APP_SERVER_URL}/api/equipment/send/${equipmentId}/${characterId}`, 
+        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`, 
           {},
           { headers: { Authorization: `Bearer ${token}` } }
         );
-        alert('Equipment sent successfully');
+        alert('Game item sent successfully');
       } catch (error) {
-        console.error('Error sending equipment:', error.response?.data || error.message);
-        alert(error.response?.data?.message || 'Error sending equipment');
+        console.error('Error sending game item:', error.response?.data || error.message);
+        alert(error.response?.data?.message || 'Error sending game item');
       }
     }
   };
@@ -62,8 +62,8 @@ const AdminEquipmentList = () => {
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
-        <h2 className="text-2xl font-semibold text-gray-800">Equipment</h2>
-        <Link to="/admin/equipment/new" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
+        <h2 className="text-2xl font-semibold text-gray-800">Game Items</h2>
+        <Link to="/admin/gameItem/new" className="bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded-md transition-colors">
           Create New
         </Link>
       </div>
@@ -79,25 +79,25 @@ const AdminEquipmentList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {equipment.map((equipmentItem) => (
-              <tr key={equipmentItem._id}>
+            {gameItems.map((gameItem) => (
+              <tr key={gameItem._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10">
-                      <img className="h-10 w-10 rounded-full" src={equipmentItem.image || "https://via.placeholder.com/150"} alt={equipmentItem.name} />
+                      <img className="h-10 w-10 rounded-full" src={gameItem.image || "https://via.placeholder.com/150"} alt={gameItem.name} />
                     </div>
                     <div className="ml-4">
-                      <div className="text-sm font-medium text-gray-900">{equipmentItem.name}</div>
+                      <div className="text-sm font-medium text-gray-900">{gameItem.name}</div>
                     </div>
                   </div>
                 </td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.type}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.rarity}</td>
-                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{equipmentItem.minLevel}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.type}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.rarity}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{gameItem.minLevel}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                  <Link to={`/admin/equipment/edit/${equipmentItem._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
-                  <button onClick={() => handleDelete(equipmentItem._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
-                  <button onClick={() => handleSendEquipment(equipmentItem._id)} className="text-green-600 hover:text-green-900">Send</button>
+                  <Link to={`/admin/gameItem/edit/${gameItem._id}`} className="text-indigo-600 hover:text-indigo-900 mr-3">Edit</Link>
+                  <button onClick={() => handleDelete(gameItem._id)} className="text-red-600 hover:text-red-900 mr-3">Delete</button>
+                  <button onClick={() => handleSendGameItem(gameItem._id)} className="text-green-600 hover:text-green-900">Send</button>
                 </td>
               </tr>
             ))}
@@ -108,4 +108,4 @@ const AdminEquipmentList = () => {
   );
 };
 
-export default AdminEquipmentList;
+export default AdminGameItemList;
