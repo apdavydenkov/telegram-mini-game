@@ -5,26 +5,36 @@ import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterStats = ({ character, onCharacterUpdate }) => {
   const [updatedCharacter, setUpdatedCharacter] = useState(character);
-  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
+  const [currentHealth, setCurrentHealth] = useState(character?.healthData?.currentHealth || 0);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     setUpdatedCharacter(character);
-    setCurrentHealth(character.healthData.currentHealth);
+    if (character && character.healthData) {
+      setCurrentHealth(character.healthData.currentHealth);
 
-    const updateHealth = () => {
-      const now = new Date();
-      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
-      setCurrentHealth(Math.round(newHealth * 100) / 100);
-    };
+      const updateHealth = () => {
+        const now = new Date();
+        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+        const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
+        setCurrentHealth(Math.round(newHealth * 100) / 100);
+      };
 
-    updateHealth();
-    const intervalId = setInterval(updateHealth, 1000);
+      updateHealth();
+      const intervalId = setInterval(updateHealth, 1000);
 
-    return () => clearInterval(intervalId);
+      return () => clearInterval(intervalId);
+    }
   }, [character]);
+
+  const calculateTotalStat = (baseStat, statName) => {
+    if (!updatedCharacter || !updatedCharacter.inventory) return baseStat;
+
+    const equippedItems = updatedCharacter.inventory.filter(item => item.isEquipped);
+    const bonusStat = equippedItems.reduce((sum, item) => sum + (item.gameItem?.stats?.[statName] || 0), 0);
+    return baseStat + bonusStat;
+  };
 
   const handleStatIncrease = async (stat) => {
     if (updatedCharacter.finalDistribution) return;
@@ -67,27 +77,37 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     }
   };
 
-  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => (
-    <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
-      <span className="flex items-center text-gray-700">
-        <Icon className="mr-2 text-blue-500" />
-        {label}:
-      </span>
-      <div className="flex items-center">
-        <span className="font-semibold text-blue-600 mx-2">
-          {maxValue !== undefined ? `${Math.round(value)}/${maxValue}` : value}
+  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => {
+    if (!stat && value === undefined) return null;
+
+    const baseValue = updatedCharacter[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
+    const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
+    const bonusValue = stat ? totalValue - baseValue : 0;
+
+    return (
+      <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
+        <span className="flex items-center text-gray-700">
+          <Icon className="mr-2 text-blue-500" />
+          {label}:
         </span>
-        {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
-          <button
-            onClick={() => handleStatIncrease(stat)}
-            className="w-6 h-6 bg-green-500 text-white rounded"
-          >
-            +
-          </button>
-        )}
+        <div className="flex items-center">
+          <span className="font-semibold text-blue-600 mx-2">
+            {maxValue !== undefined ? `${Math.round(totalValue)}/${maxValue}` : 
+             typeof totalValue === 'number' ? totalValue.toFixed(2) : totalValue}
+            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{bonusValue})</span>}
+          </span>
+          {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
+            <button
+              onClick={() => handleStatIncrease(stat)}
+              className="w-6 h-6 bg-green-500 text-white rounded"
+            >
+              +
+            </button>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (!updatedCharacter || !updatedCharacter.calculatedStats) {
     return <div>Загрузка характеристик...</div>;
@@ -100,11 +120,11 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       {error && <div className="col-span-2 text-red-500">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.baseStrength} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.baseDexterity} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.baseIntelligence} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.baseEndurance} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.baseCharisma} stat="charisma" />
+        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(updatedCharacter.baseStrength, 'strength')} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(updatedCharacter.baseDexterity, 'dexterity')} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(updatedCharacter.baseIntelligence, 'intelligence')} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(updatedCharacter.baseEndurance, 'endurance')} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(updatedCharacter.baseCharisma, 'charisma')} stat="charisma" />
         <StatParam
           icon={FaHeart}
           label="Здоровье"
@@ -121,13 +141,13 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={Math.round(calculatedStats.damage)} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={Math.round(calculatedStats.armor)} isAdjustable={false} />
-        <StatParam icon={FaBullseye} label="Шанс крита" value={`${calculatedStats.criticalChance.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBolt} label="Сила крита" value={`${calculatedStats.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaWind} label="Уворот" value={`${calculatedStats.dodge.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${calculatedStats.counterAttack.toFixed(2)}%`} isAdjustable={false} />
-        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegen.toFixed(2)}/сек`} isAdjustable={false} />
+        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor} />
+        <StatParam icon={FaBullseye} label="Шанс крита" value={`${calculatedStats.criticalChance.toFixed(2)}%`} />
+        <StatParam icon={FaBolt} label="Сила крита" value={`${calculatedStats.criticalDamage.toFixed(2)}%`} />
+        <StatParam icon={FaWind} label="Уворот" value={`${calculatedStats.dodge.toFixed(2)}%`} />
+        <StatParam icon={FaBalanceScale} label="Контрудар" value={`${calculatedStats.counterAttack.toFixed(2)}%`} />
+        <StatParam icon={FaHeartbeat} label="Реген здоровья" value={`${calculatedStats.healthRegen.toFixed(2)}/сек`} />
       </div>
     </div>
   );

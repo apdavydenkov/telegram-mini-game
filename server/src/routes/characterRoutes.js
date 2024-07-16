@@ -1,3 +1,5 @@
+const characterController = require('../controllers/characterController');
+
 const express = require('express');
 const { 
   createCharacter, 
@@ -15,7 +17,7 @@ const router = express.Router();
 router.post('/', authMiddleware, createCharacter);
 router.get('/', authMiddleware, getCharacter);
 router.put('/', authMiddleware, updateCharacter);
-router.post('/equip', authMiddleware, equipCharItem);
+router.post('/equip', authMiddleware, characterController.equipCharItem);
 router.post('/addItem', authMiddleware, addItemToInventory);
 router.get('/health', authMiddleware, getHealthData);
 router.post('/damage', authMiddleware, damageCharacter);

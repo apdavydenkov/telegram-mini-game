@@ -29,9 +29,9 @@ const Character = ({ character }) => {
   }
 
   const renderEquippedItem = (slot) => {
-    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.slot === slot);
+    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.gameItem.type === slot);
     return equippedItem ? (
-      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${slot}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
+      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${equippedItem.gameItem.name}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
     ) : (
       <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
     );

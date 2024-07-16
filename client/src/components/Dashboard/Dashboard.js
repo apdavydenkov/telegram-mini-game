@@ -77,11 +77,11 @@ const Dashboard = () => {
     setCharacter(updatedCharacter);
   };
 
-  const handleEquipItem = async (itemId, slot) => {
+  const handleEquipItem = async (itemId) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${APP_SERVER_URL}/api/character/equip`,
-        { itemId, slot },
+        { charItemId: itemId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCharacter(response.data);
@@ -121,7 +121,7 @@ const Dashboard = () => {
           </div>
           <TabContent>
             {activeTab === 'characterstats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} />}
-            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
+            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onClickInventoryItem={handleEquipItem} />}
             {activeTab === 'skills' && <Skills skills={character.skills || []} />}
           </TabContent>
         </>
@@ -135,4 +135,4 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Dashboard; 

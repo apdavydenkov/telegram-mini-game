@@ -122,37 +122,40 @@ exports.updateCharacter = async (req, res) => {
 exports.equipCharItem = async (req, res) => {
   try {
     const { charItemId } = req.body;
-    const character = await Character.findOne({ user: req.user._id });
+    const character = await Character.findOne({ user: req.user._id }).populate('inventory');
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const charItem = await CharItem.findById(charItemId).populate('gameItem');
+    const charItem = character.inventory.find(item => item._id.toString() === charItemId);
     if (!charItem) {
-      return res.status(404).json({ message: 'Предмет не найден' });
+      return res.status(404).json({ message: 'Предмет не найден в инвентаре' });
     }
 
-    // Проверка, принадлежит ли предмет персонажу
-    if (charItem.character.toString() !== character._id.toString()) {
-      return res.status(403).json({ message: 'Этот предмет не принадлежит персонажу' });
+    const itemSlot = charItem.gameItem.type;
+
+    // Если предмет уже экипирован, снимаем его
+    if (charItem.isEquipped) {
+      charItem.isEquipped = false;
+      charItem.slot = null;
+    } else {
+      // Снимаем текущий предмет в этом слоте, если он есть
+      const currentEquipped = character.inventory.find(item => item.isEquipped && item.gameItem.type === itemSlot);
+      if (currentEquipped) {
+        currentEquipped.isEquipped = false;
+        currentEquipped.slot = null;
+        await currentEquipped.save();
+      }
+
+      // Экипируем новый предмет
+      charItem.isEquipped = true;
+      charItem.slot = itemSlot;
     }
 
-    // Снимаем текущий предмет, если он есть
-    const currentEquipped = await CharItem.findOne({ character: character._id, slot: charItem.gameItem.type, isEquipped: true });
-    if (currentEquipped) {
-      await currentEquipped.unequip();
-    }
-
-    // Экипируем новый предмет
-    charItem.slot = charItem.gameItem.type;
-    await charItem.equip();
-
-    // Обновляем персонажа
-    character.calculatedStats = character.calculatedStats; // Это вызовет пересчет статов
-
+    await charItem.save();
     await character.save();
 
-    res.json(character);
+    res.json(await character.populate('inventory.gameItem'));
   } catch (error) {
     console.error('Ошибка экипировки предмета:', error);
     res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });

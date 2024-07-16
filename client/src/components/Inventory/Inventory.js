@@ -40,11 +40,10 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
 
   return (
     <div
-      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${
-        itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
-      }`}
+      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
+        }`}
       style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.gameItem?.type)}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id)}
     >
       {itemDetails && (
         <>
@@ -53,6 +52,11 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
             <div className="font-bold truncate w-full">{itemDetails.gameItem.name}</div>
             <div>x{itemDetails.quantity}</div>
           </div>
+          {itemDetails.isEquipped && (
+            <div className="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 rounded-bl">
+              Экипировано
+            </div>
+          )}
         </>
       )}
     </div>
@@ -103,14 +107,14 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
       </div>
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredInventory.map((item, index) => (
-          <InventorySlot 
+          <InventorySlot
             key={`${item._id}-${index}`}
-            inventoryItem={item} 
+            inventoryItem={item}
             onClickInventoryItem={onClickInventoryItem}
           />
         ))}
         {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
-          <div 
+          <div
             key={`empty-${index}`}
             className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center"
           />

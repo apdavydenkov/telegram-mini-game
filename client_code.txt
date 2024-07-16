@@ -132,7 +132,7 @@ const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [gameItem, setGameItem] = useState({
-    name: '', type: '', rarity: '', minLevel: 1, image: '',
+    name: '', type: 'weapon', rarity: 'common', minLevel: 1, image: '',
     stats: {
       strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
       damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,
@@ -358,7 +358,7 @@ const AdminGameItemList = () => {
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
                     <div className="flex-shrink-0 h-10 w-10">
-                      <img className="h-10 w-10 rounded-full" src={gameItem.image || "https://via.placeholder.com/150"} alt={gameItem.name} />
+                      <img className="h-10 w-10" src={gameItem.image || "https://placehold.co/150"} alt={gameItem.name} />
                     </div>
                     <div className="ml-4">
                       <div className="text-sm font-medium text-gray-900">{gameItem.name}</div>
@@ -604,27 +604,41 @@ export default Register;
 import React, { useState, useEffect } from 'react';
 
 const Character = ({ character }) => {
-  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
-  const [maxHealth, setMaxHealth] = useState(character.healthData.maxHealth);
+  const [currentHealth, setCurrentHealth] = useState(0);
+  const [maxHealth, setMaxHealth] = useState(0);
 
   useEffect(() => {
-    setMaxHealth(character.healthData.maxHealth);
-    
-    const updateHealth = () => {
-      const now = new Date();
-      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
-      setCurrentHealth(Math.round(newHealth * 100) / 100);
-    };
+    if (character && character.healthData) {
+      setCurrentHealth(character.healthData.currentHealth);
+      setMaxHealth(character.healthData.maxHealth);
+      
+      const updateHealth = () => {
+        const now = new Date();
+        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+        const newHealth = Math.min(character.healthData.currentHealth + regenAmount, character.healthData.maxHealth);
+        setCurrentHealth(Math.round(newHealth * 100) / 100);
+      };
 
-    updateHealth();
-    const intervalId = setInterval(updateHealth, 1000); // Обновляем каждую секунду
+      updateHealth();
+      const intervalId = setInterval(updateHealth, 1000); // Обновляем каждую секунду
 
-    return () => clearInterval(intervalId);
-  }, [character.healthData]);
+      return () => clearInterval(intervalId);
+    }
+  }, [character]);
 
-  const { calculatedStats } = character;
+  if (!character) {
+    return <div>Загрузка персонажа...</div>;
+  }
+
+  const renderEquippedItem = (slot) => {
+    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.slot === slot);
+    return equippedItem ? (
+      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${slot}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
+    ) : (
+      <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
+    );
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
@@ -666,44 +680,30 @@ const Character = ({ character }) => {
           <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
         </div>
 
-        {/* Banner */}
+        {/* Equipment slots */}
         <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Banner" alt="Banner" className="w-full h-full object-cover" />
+          {renderEquippedItem('banner')}
         </div>
-
-        {/* Helmet */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Helmet" alt="Helmet" className="w-full h-full object-cover" />
+          {renderEquippedItem('helmet')}
         </div>
-
-        {/* Weapon */}
         <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Weapon" alt="Weapon" className="w-full h-full object-cover" />
+          {renderEquippedItem('weapon')}
         </div>
-
-        {/* Shield */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Shield" alt="Shield" className="w-full h-full object-cover" />
+          {renderEquippedItem('shield')}
         </div>
-
-        {/* Armor */}
         <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Armor" alt="Armor" className="w-full h-full object-cover" />
+          {renderEquippedItem('armor')}
         </div>
-
-        {/* Cloak */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Cloak" alt="Cloak" className="w-full h-full object-cover" />
+          {renderEquippedItem('cloak')}
         </div>
-
-        {/* Belt */}
         <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Belt" alt="Belt" className="w-full h-full object-cover" />
+          {renderEquippedItem('belt')}
         </div>
-
-        {/* Boots */}
         <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/60x60?text=Boots" alt="Boots" className="w-full h-full object-cover" />
+          {renderEquippedItem('boots')}
         </div>
 
         {/* Inventory items */}
@@ -1069,21 +1069,9 @@ const Dashboard = () => {
     }
   };
 
-  const handleCharacterCreated = async (newCharacter) => {
+  const handleCharacterCreated = (newCharacter) => {
     setCharacter(newCharacter);
-    // Обновляем данные пользователя, чтобы отразить создание персонажа
     setUser(prevUser => ({ ...prevUser, hasCharacter: true }));
-    // Обновляем данные на сервере
-    try {
-      const token = localStorage.getItem('token');
-      await axios.put(`${APP_SERVER_URL}/api/auth/update`,
-        { hasCharacter: true },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-    } catch (error) {
-      console.error('Ошибка обновления данных пользователя:', error);
-      setError('Ошибка обновления данных пользователя. Пожалуйста, обновите страницу.');
-    }
   };
 
   if (loading) {
@@ -1147,8 +1135,8 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
 
   useEffect(() => {
-    if (inventoryItem && inventoryItem.charItem) {
-      fetchItemDetails(inventoryItem.charItem);
+    if (inventoryItem) {
+      fetchItemDetails(inventoryItem._id);
     }
   }, [inventoryItem]);
 
@@ -1173,15 +1161,15 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
       className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${
         itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
       }`}
-      style={itemDetails ? { backgroundImage: `url(${itemDetails.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem.charItem, itemDetails?.type)}
+      style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.gameItem?.type)}
     >
       {itemDetails && (
         <>
           <div className="absolute inset-0 bg-black bg-opacity-30"></div>
           <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
-            <div className="font-bold truncate w-full">{itemDetails.name}</div>
-            <div>x{inventoryItem.quantity}</div>
+            <div className="font-bold truncate w-full">{itemDetails.gameItem.name}</div>
+            <div>x{itemDetails.quantity}</div>
           </div>
         </>
       )}
@@ -1209,7 +1197,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     if (activeCategory === 'all') {
       setFilteredInventory(inventory);
     } else {
-      const filtered = inventory.filter(item => item.type === activeCategory);
+      const filtered = inventory.filter(item => item.gameItem?.type === activeCategory);
       setFilteredInventory(filtered);
     }
   };
@@ -1231,10 +1219,10 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg  ">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot 
-            key={`${item.charItem}-${index}`}
+            key={`${item._id}-${index}`}
             inventoryItem={item} 
             onClickInventoryItem={onClickInventoryItem}
           />

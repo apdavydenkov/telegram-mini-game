@@ -181,7 +181,7 @@ exports.makeAdmin = async (req, res) => {
 // Далее код файла controllers\characterController.js:
 const Character = require('../models/Character');
 const User = require('../models/User');
-const CharItem = require('../models/CharItem');
+
 
 exports.createCharacter = async (req, res) => {
   try {
@@ -211,12 +211,20 @@ exports.createCharacter = async (req, res) => {
       baseCharisma,
       availablePoints: 5 - (totalStats - baseStats)
     });
+
     await character.save();
 
     // Обновляем поле hasCharacter у пользователя
     await User.findByIdAndUpdate(req.user._id, { hasCharacter: true });
 
-    res.status(201).json(character);
+    // Получаем данные о здоровье
+    const healthData = character.getHealthData();
+
+    // Добавляем healthData к ответу
+    const characterData = character.toObject();
+    characterData.healthData = healthData;
+
+    res.status(201).json(characterData);
   } catch (error) {
     console.error('Ошибка создания персонажа:', error);
     res.status(400).json({ message: 'Ошибка создания персонажа', error: error.message });
@@ -225,7 +233,11 @@ exports.createCharacter = async (req, res) => {
 
 exports.getCharacter = async (req, res) => {
   try {
-    const character = await Character.findOne({ user: req.user._id });
+    const character = await Character.findOne({ user: req.user._id })
+      .populate({
+        path: 'inventory',
+        populate: { path: 'gameItem' }
+      });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
@@ -288,27 +300,74 @@ exports.updateCharacter = async (req, res) => {
   }
 };
 
-exports.addCharItemToInventory = async (req, res) => {
+exports.equipCharItem = async (req, res) => {
   try {
     const { charItemId } = req.body;
     const character = await Character.findOne({ user: req.user._id });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
-    
-    const charItem = await CharItem.findById(charItemId);
+
+    const charItem = await CharItem.findById(charItemId).populate('gameItem');
     if (!charItem) {
       return res.status(404).json({ message: 'Предмет не найден' });
     }
 
-    const inventoryCharItem = character.inventory.find(i => i.charItem.toString() === charItemId);
-    if (inventoryCharItem) {
-      inventoryCharItem.quantity += 1;
-    } else {
-      character.inventory.push({ charItem: charItemId, quantity: 1 });
+    // Проверка, принадлежит ли предмет персонажу
+    if (charItem.character.toString() !== character._id.toString()) {
+      return res.status(403).json({ message: 'Этот предмет не принадлежит персонажу' });
     }
 
+    // Снимаем текущий предмет, если он есть
+    const currentEquipped = await CharItem.findOne({ character: character._id, slot: charItem.gameItem.type, isEquipped: true });
+    if (currentEquipped) {
+      await currentEquipped.unequip();
+    }
+
+    // Экипируем новый предмет
+    charItem.slot = charItem.gameItem.type;
+    await charItem.equip();
+
+    // Обновляем персонажа
+    character.calculatedStats = character.calculatedStats; // Это вызовет пересчет статов
+
     await character.save();
+
+    res.json(character);
+  } catch (error) {
+    console.error('Ошибка экипировки предмета:', error);
+    res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
+  }
+};
+
+exports.addItemToInventory = async (req, res) => {
+  try {
+    const { gameItemId, quantity = 1 } = req.body;
+    const character = await Character.findOne({ user: req.user._id });
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    const gameItem = await GameItem.findById(gameItemId);
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Игровой предмет не найден' });
+    }
+
+    let charItem = await CharItem.findOne({ character: character._id, gameItem: gameItemId, isEquipped: false });
+    if (charItem) {
+      charItem.quantity += quantity;
+    } else {
+      charItem = new CharItem({
+        character: character._id,
+        gameItem: gameItemId,
+        quantity
+      });
+    }
+
+    await charItem.save();
+    character.inventory.push(charItem._id);
+    await character.save();
+
     res.json(character);
   } catch (error) {
     console.error('Ошибка добавления предмета в инвентарь:', error);
@@ -316,57 +375,6 @@ exports.addCharItemToInventory = async (req, res) => {
   }
 };
 
-exports.equipCharItem = async (req, res) => {
-  try {
-    const { charItemId, slot } = req.body;
-    const character = await Character.findOne({ user: req.user._id });
-    if (!character) {
-      return res.status(404).json({ message: 'Персонаж не найден' });
-    }
-
-    const charItem = await CharItem.findById(charItemId);
-    if (!charItem) {
-      return res.status(404).json({ message: 'Предмет не найден' });
-    }
-
-    if (charItem.slot !== slot) {
-      return res.status(400).json({ message: 'Предмет нельзя экипировать в этот слот' });
-    }
-
-    // Снимаем текущий предмет, если он есть
-    if (character.equipment[slot]) {
-      character.inventory.push({ charItem: character.equipment[slot], quantity: 1 });
-    }
-
-    // Удаляем предмет из инвентаря и экипируем его
-    const inventoryIndex = character.inventory.findIndex(i => i.charItem.toString() === charItemId);
-    if (inventoryIndex === -1) {
-      return res.status(400).json({ message: 'Предмет не найден в инвентаре' });
-    }
-
-    if (character.inventory[inventoryIndex].quantity > 1) {
-      character.inventory[inventoryIndex].quantity -= 1;
-    } else {
-      character.inventory.splice(inventoryIndex, 1);
-    }
-
-    character.equipment[slot] = charItemId;
-
-    await character.save();
-
-    const healthData = character.getHealthData();
-    const characterData = character.toObject();
-    characterData.healthData = healthData;
-    characterData.calculatedStats = character.calculatedStats;
-
-    res.json(characterData);
-  } catch (error) {
-    console.error('Ошибка экипировки предмета:', error);
-    res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
-  }
-};
-
-// Добавим метод для получения данных о здоровье
 exports.getHealthData = async (req, res) => {
   try {
     const character = await Character.findOne({ user: req.user._id });
@@ -382,7 +390,6 @@ exports.getHealthData = async (req, res) => {
   }
 };
 
-// Метод для нанесения урона персонажу
 exports.damageCharacter = async (req, res) => {
   try {
     const { damage } = req.body;
@@ -409,29 +416,98 @@ module.exports = exports;
 
 // Далее код файла controllers\charItemController.js:
 const CharItem = require('../models/CharItem');
+const Character = require('../models/Character');
+const GameItem = require('../models/GameItem');
 
 exports.createCharItem = async (req, res) => {
   try {
-    const charItem = new CharItem(req.body);
+    const { gameItemId, characterId, quantity } = req.body;
+    
+    const character = await Character.findById(characterId);
+    if (!character) {
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
+
+    const gameItem = await GameItem.findById(gameItemId);
+    if (!gameItem) {
+      return res.status(404).json({ message: 'Игровой предмет не найден' });
+    }
+
+    const charItem = new CharItem({
+      gameItem: gameItemId,
+      character: characterId,
+      quantity: quantity || 1
+    });
+
     await charItem.save();
+    character.inventory.push(charItem._id);
+    await character.save();
+
     res.status(201).json(charItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error creating char item', error: error.message });
+    res.status(400).json({ message: 'Ошибка создания предмета персонажа', error: error.message });
   }
 };
 
-exports.getAllCharItems = async (req, res) => {
+exports.getCharItemById = async (req, res) => {
   try {
-    const charItems = await CharItem.find();
-    res.json(charItems);
+    const charItem = await CharItem.findById(req.params.id).populate('gameItem');
+    if (!charItem) {
+      return res.status(404).json({ message: 'Предмет не найден' });
+    }
+    res.json(charItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error fetching char items', error: error.message });
+    res.status(400).json({ message: 'Ошибка получения предмета', error: error.message });
   }
 };
+
+exports.updateCharItem = async (req, res) => {
+  try {
+    const { quantity, isEquipped, slot } = req.body;
+    const charItem = await CharItem.findById(req.params.id);
+    
+    if (!charItem) {
+      return res.status(404).json({ message: 'Предмет не найден' });
+    }
+
+    if (quantity !== undefined) charItem.quantity = quantity;
+    if (isEquipped !== undefined) charItem.isEquipped = isEquipped;
+    if (slot !== undefined) charItem.slot = slot;
+
+    await charItem.save();
+    res.json(charItem);
+  } catch (error) {
+    res.status(400).json({ message: 'Ошибка обновления предмета', error: error.message });
+  }
+};
+
+exports.deleteCharItem = async (req, res) => {
+  try {
+    const charItem = await CharItem.findById(req.params.id);
+    if (!charItem) {
+      return res.status(404).json({ message: 'Предмет не найден' });
+    }
+
+    const character = await Character.findById(charItem.character);
+    if (character) {
+      character.inventory = character.inventory.filter(item => item.toString() !== charItem._id.toString());
+      await character.save();
+    }
+
+    await CharItem.findByIdAndDelete(req.params.id);
+    res.json({ message: 'Предмет успешно удален' });
+  } catch (error) {
+    res.status(400).json({ message: 'Ошибка удаления предмета', error: error.message });
+  }
+};
+
+module.exports = exports;
 
 // Далее код файла controllers\gameItemController.js:
 const GameItem = require('../models/gameItem');
 const Character = require('../models/Character');
+const CharItem = require('../models/CharItem');
+const mongoose = require('mongoose');
 
 exports.createGameItem = async (req, res) => {
   try {
@@ -502,15 +578,29 @@ exports.sendGameItemToCharacter = async (req, res) => {
       return res.status(404).json({ message: 'Character not found' });
     }
     
-    // Добавляем игровой предмет к персонажу
-    character.inventory.push({ charItem: gameItem._id, quantity: 1 });
+    // Создаем новый CharItem
+    const charItem = new CharItem({
+      gameItem: gameItem._id,
+      character: character._id,
+      quantity: 1,
+      isEquipped: false,
+      slot: null
+    });
+
+    await charItem.save();
+    
+    // Добавляем CharItem к инвентарю персонажа
+    character.inventory.push(charItem._id);
     await character.save();
     
     res.json({ message: 'Game item sent to character successfully', character });
   } catch (error) {
+    console.error('Error sending game item:', error);
     res.status(400).json({ message: 'Error sending game item', error: error.message });
   }
 };
+
+module.exports = exports;
 
 // Далее код файла middlewares\adminMiddleware.js:
 // middlewares/adminMiddleware.js
@@ -597,22 +687,9 @@ const characterSchema = new mongoose.Schema({
 
   // Инвентарь
   inventory: [{
-    charItem: { type: mongoose.Schema.Types.ObjectId, ref: 'CharItem' },
-    quantity: { type: Number, default: 1 }
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'CharItem'
   }],
-
-  // Экипировка
-  equipment: {
-    weapon: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    armor: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    helmet: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    shield: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    cloak: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    boots: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    belt: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    accessory: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' },
-    banner: { type: mongoose.Schema.Types.ObjectId, ref: 'GameItem' }
-  },
 
   version: { type: Number, default: 0 }
 }, { timestamps: true });
@@ -702,7 +779,6 @@ characterSchema.pre('save', function(next) {
       this.isModified('baseIntelligence') ||
       this.isModified('baseEndurance') ||
       this.isModified('baseCharisma') ||
-      this.isModified('equipment') ||
       this.isModified('inventory')) {
     this.version += 1;
   }
@@ -717,25 +793,43 @@ module.exports = mongoose.model('Character', characterSchema);
 const mongoose = require('mongoose');
 
 const charItemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['weapon', 'armor', 'accessory'], 
+  gameItem: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'GameItem', 
     required: true 
+  },
+  character: { 
+    type: mongoose.Schema.Types.ObjectId, 
+    ref: 'Character', 
+    required: true 
+  },
+  quantity: { 
+    type: Number, 
+    default: 1 
+  },
+  isEquipped: { 
+    type: Boolean, 
+    default: false 
   },
   slot: { 
     type: String, 
-    enum: ['hand', 'body', 'head', 'feet', 'accessory'], 
-    required: true 
-  },
-  stats: {
-    strength: { type: Number, default: 0 },
-    dexterity: { type: Number, default: 0 },
-    intelligence: { type: Number, default: 0 },
-    health: { type: Number, default: 0 }
-  },
-  description: { type: String }
-});
+    enum: ['weapon', 'armor', 'helmet', 'shield', 'cloak', 'boots', 'belt', 'accessory', 'banner', null],
+    default: null
+  }
+}, { timestamps: true });
+
+// Метод для экипировки предмета
+charItemSchema.methods.equip = function() {
+  this.isEquipped = true;
+  return this.save();
+};
+
+// Метод для снятия предмета
+charItemSchema.methods.unequip = function() {
+  this.isEquipped = false;
+  this.slot = null;
+  return this.save();
+};
 
 module.exports = mongoose.model('CharItem', charItemSchema);
 
@@ -773,7 +867,7 @@ const gameItemSchema = new mongoose.Schema({
   }
 });
 
-module.exports = mongoose.model('GameItem', gameItemSchema);
+module.exports = mongoose.models.GameItem || mongoose.model('GameItem', gameItemSchema);
 
 // Далее код файла models\User.js:
 // models/User.js
@@ -827,8 +921,10 @@ const {
   createCharacter, 
   getCharacter, 
   updateCharacter, 
-  addCharItemToInventory, 
-  equipCharItem 
+  equipCharItem,
+  addItemToInventory,
+  getHealthData,
+  damageCharacter
 } = require('../controllers/characterController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -837,20 +933,29 @@ const router = express.Router();
 router.post('/', authMiddleware, createCharacter);
 router.get('/', authMiddleware, getCharacter);
 router.put('/', authMiddleware, updateCharacter);
-router.post('/inventory', authMiddleware, addCharItemToInventory);
 router.post('/equip', authMiddleware, equipCharItem);
+router.post('/addItem', authMiddleware, addItemToInventory);
+router.get('/health', authMiddleware, getHealthData);
+router.post('/damage', authMiddleware, damageCharacter);
 
 module.exports = router;
 
 // Далее код файла routes\charItemRoutes.js:
 const express = require('express');
-const { createCharItem, getAllCharItems } = require('../controllers/charItemController');
+const { 
+  createCharItem, 
+  getCharItemById, 
+  updateCharItem, 
+  deleteCharItem 
+} = require('../controllers/charItemController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
 const router = express.Router();
 
 router.post('/', authMiddleware, createCharItem);
-router.get('/', authMiddleware, getAllCharItems);
+router.get('/:id', authMiddleware, getCharItemById);
+router.put('/:id', authMiddleware, updateCharItem);
+router.delete('/:id', authMiddleware, deleteCharItem);
 
 module.exports = router;
 
