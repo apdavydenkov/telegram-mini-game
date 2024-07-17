@@ -114,7 +114,7 @@ const Dashboard = () => {
         <>
           <Character character={character} />
 
-          <div className="flex mt-4">
+          <div className="flex mt-4 overflow-auto">
             <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
             <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
             <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />

@@ -601,32 +601,9 @@ export default Register;
 
 
 // Далее код файла components\Character\Character.js:
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 
 const Character = ({ character }) => {
-  const [currentHealth, setCurrentHealth] = useState(0);
-  const [maxHealth, setMaxHealth] = useState(0);
-
-  useEffect(() => {
-    if (character && character.healthData) {
-      setCurrentHealth(character.healthData.currentHealth);
-      setMaxHealth(character.healthData.maxHealth);
-      
-      const updateHealth = () => {
-        const now = new Date();
-        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-        const newHealth = Math.min(character.healthData.currentHealth + regenAmount, character.healthData.maxHealth);
-        setCurrentHealth(Math.round(newHealth * 100) / 100);
-      };
-
-      updateHealth();
-      const intervalId = setInterval(updateHealth, 1000); // Обновляем каждую секунду
-
-      return () => clearInterval(intervalId);
-    }
-  }, [character]);
-
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
@@ -639,6 +616,9 @@ const Character = ({ character }) => {
       <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
     );
   };
+
+  const currentHealth = Math.round(character.healthData.currentHealth);
+  const maxHealth = character.healthData.maxHealth;
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
@@ -671,7 +651,7 @@ const Character = ({ character }) => {
             style={{ width: `${(currentHealth / maxHealth) * 100}%` }}
           />
           <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-            HP: {Math.round(currentHealth)}/{maxHealth}
+            HP: {currentHealth}/{maxHealth}
           </div>
         </div>
 
@@ -877,7 +857,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
   };
 
   const handleStatIncrease = async (stat) => {
-    if (updatedCharacter.finalDistribution) return;
+    if (updatedCharacter.zeroPoints) return;
 
     const token = localStorage.getItem('token');
 
@@ -924,6 +904,18 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
     const bonusValue = stat ? totalValue - baseValue : 0;
 
+    const formatValue = (val) => {
+      if (typeof val === 'number') {
+        // Округляем до целого числа для базовых параметров и здоровья
+        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat) || label === 'Здоровье') {
+          return Math.round(val);
+        }
+        // Для остальных параметров оставляем два знака после запятой
+        return val.toFixed(2);
+      }
+      return val;
+    };
+
     return (
       <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
         <span className="flex items-center text-gray-700">
@@ -932,11 +924,10 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         </span>
         <div className="flex items-center">
           <span className="font-semibold text-blue-600 mx-2">
-            {maxValue !== undefined ? `${Math.round(totalValue)}/${maxValue}` : 
-             typeof totalValue === 'number' ? totalValue.toFixed(2) : totalValue}
-            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{bonusValue})</span>}
+            {maxValue !== undefined ? `${formatValue(totalValue)}/${formatValue(maxValue)}` : formatValue(totalValue)}
+            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{formatValue(bonusValue)})</span>}
           </span>
-          {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
+          {isAdjustable && !updatedCharacter.zeroPoints && updatedCharacter.availablePoints > 0 && (
             <button
               onClick={() => handleStatIncrease(stat)}
               className="w-6 h-6 bg-green-500 text-white rounded"
@@ -972,7 +963,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
           maxValue={updatedCharacter.healthData.maxHealth}
           isAdjustable={false}
         />
-        {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
+        {updatedCharacter.availablePoints > 0 && !updatedCharacter.zeroPoints && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
             Доступные навыки: {updatedCharacter.availablePoints}

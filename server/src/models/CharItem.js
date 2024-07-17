@@ -21,7 +21,7 @@ const charItemSchema = new mongoose.Schema({
   },
   slot: { 
     type: String, 
-    enum: ['weapon', 'armor', 'helmet', 'shield', 'cloak', 'boots', 'belt', 'accessory', 'banner', null],
+    enum: ['weapon', 'armor', 'helmet', 'shield', 'cloak', 'boots', 'belt', 'banner', 'useful1', 'useful2', 'useful3', null],
     default: null
   }
 }, { timestamps: true });

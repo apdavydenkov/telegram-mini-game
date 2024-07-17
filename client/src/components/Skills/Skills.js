@@ -38,7 +38,7 @@ const Skills = ({ skills }) => {
 
   return (
     <div>
-      <div className="flex mt-4">
+      <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
           <CategoryTab
             key={category.id}

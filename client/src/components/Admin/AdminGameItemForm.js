@@ -133,7 +133,7 @@ const AdminGameItemForm = () => {
               name="type"
               value={gameItem.type}
               onChange={handleChange}
-              options={['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots']}
+              options={['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful']}
             />
             <SelectField
               label="Редкость"

@@ -71,8 +71,12 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     { id: 'all', name: 'Все' },
     { id: 'weapon', name: 'Оружие' },
     { id: 'armor', name: 'Броня' },
-    { id: 'accessory', name: 'Аксессуары' },
-    { id: 'consumable', name: 'Расходники' },
+    { id: 'cloack', name: 'Плащи' },
+    { id: 'helmet', name: 'Шлемы' },
+    { id: 'belt', name: 'Пояса' },
+    { id: 'boots', name: 'Обувь' },
+    { id: 'banner', name: 'Знамя' },
+    { id: 'useful', name: 'Полезное' },
   ];
 
   useEffect(() => {
@@ -94,7 +98,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
 
   return (
     <div>
-      <div className="flex mt-4">
+      <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
           <CategoryTab
             key={category.id}

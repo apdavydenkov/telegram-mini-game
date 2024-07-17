@@ -37,7 +37,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
   };
 
   const handleStatIncrease = async (stat) => {
-    if (updatedCharacter.finalDistribution) return;
+    if (updatedCharacter.zeroPoints) return;
 
     const token = localStorage.getItem('token');
 
@@ -107,7 +107,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
             {maxValue !== undefined ? `${formatValue(totalValue)}/${formatValue(maxValue)}` : formatValue(totalValue)}
             {bonusValue > 0 && <span className="text-green-500 ml-1">(+{formatValue(bonusValue)})</span>}
           </span>
-          {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
+          {isAdjustable && !updatedCharacter.zeroPoints && updatedCharacter.availablePoints > 0 && (
             <button
               onClick={() => handleStatIncrease(stat)}
               className="w-6 h-6 bg-green-500 text-white rounded"
@@ -143,7 +143,7 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
           maxValue={updatedCharacter.healthData.maxHealth}
           isAdjustable={false}
         />
-        {updatedCharacter.availablePoints > 0 && !updatedCharacter.finalDistribution && (
+        {updatedCharacter.availablePoints > 0 && !updatedCharacter.zeroPoints && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
             Доступные навыки: {updatedCharacter.availablePoints}

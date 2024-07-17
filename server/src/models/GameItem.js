@@ -4,7 +4,7 @@ const gameItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
   type: { 
     type: String, 
-    enum: ['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots'], 
+    enum: ['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful'], 
     required: true 
   },
   rarity: {
@@ -25,9 +25,9 @@ const gameItemSchema = new mongoose.Schema({
     criticalChance: { type: Number, default: 0 },
     criticalDamage: { type: Number, default: 0 },
     dodge: { type: Number, default: 0 },
-    healthRegen: { type: Number, default: 0 },
+    counterAttack: { type: Number, default: 0 },
     health: { type: Number, default: 0 },
-    counterAttack: { type: Number, default: 0 }
+    healthRegen: { type: Number, default: 0 }
   }
 });
 

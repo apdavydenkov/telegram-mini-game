@@ -38,6 +38,7 @@ const characterSchema = new mongoose.Schema({
       return this.getMaxHealth();
     }
   },
+
   lastHealthUpdate: { type: Date, default: Date.now },
   fullRegenTimeInSeconds: { type: Number, default: 600 }, // 10 минут по умолчанию
 
@@ -54,7 +55,7 @@ const characterSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Виртуальное поле для проверки завершения распределения очков
-characterSchema.virtual('finalDistribution').get(function () {
+characterSchema.virtual('zeroPoints').get(function () {
   return this.availablePoints === 0;
 });
 

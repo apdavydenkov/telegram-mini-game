@@ -275,7 +275,7 @@ exports.updateCharacter = async (req, res) => {
       return res.status(409).json({ message: 'Конфликт версий. Обновите данные и попробуйте снова.' });
     }
 
-    if (character.finalDistribution) {
+    if (character.zeroPoints) {
       return res.status(400).json({ message: 'Распределение очков уже завершено' });
     }
 
@@ -287,8 +287,6 @@ exports.updateCharacter = async (req, res) => {
       return res.status(400).json({ message: 'Недопустимое распределение очков' });
     }
 
-    const oldMaxHealth = character.getMaxHealth();
-
     character.baseStrength = baseStrength;
     character.baseDexterity = baseDexterity;
     character.baseIntelligence = baseIntelligence;
@@ -296,8 +294,7 @@ exports.updateCharacter = async (req, res) => {
     character.baseCharisma = baseCharisma;
     character.availablePoints -= pointsSpent;
 
-    character.updateHealthAfterEquip(oldMaxHealth);
-
+    // Здоровье обновится автоматически в pre-save хуке
     await character.save();
     
     const healthData = character.getHealthData();
@@ -330,7 +327,6 @@ exports.equipCharItem = async (req, res) => {
     }
 
     const itemSlot = charItem.gameItem.type;
-    const oldMaxHealth = character.getMaxHealth();
 
     // Если предмет уже экипирован, снимаем его
     if (charItem.isEquipped) {
@@ -352,8 +348,7 @@ exports.equipCharItem = async (req, res) => {
 
     await charItem.save();
     
-    character.updateHealthAfterEquip(oldMaxHealth);
-    
+    // Здоровье обновится автоматически в pre-save хуке
     await character.save();
 
     const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
@@ -722,6 +717,7 @@ const characterSchema = new mongoose.Schema({
       return this.getMaxHealth();
     }
   },
+
   lastHealthUpdate: { type: Date, default: Date.now },
   fullRegenTimeInSeconds: { type: Number, default: 600 }, // 10 минут по умолчанию
 
@@ -738,7 +734,7 @@ const characterSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Виртуальное поле для проверки завершения распределения очков
-characterSchema.virtual('finalDistribution').get(function () {
+characterSchema.virtual('zeroPoints').get(function () {
   return this.availablePoints === 0;
 });
 
@@ -845,13 +841,18 @@ characterSchema.methods.recalculateStats = function() {
   return this.calculatedStats;
 };
 
-// Метод для обновления здоровья после экипировки/снятия предмета
-characterSchema.methods.updateHealthAfterEquip = function(oldMaxHealth) {
+// Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
+characterSchema.methods.updateHealthAfterChange = function(oldMaxHealth) {
   const newMaxHealth = this.getMaxHealth();
+  const currentHealth = this.getCurrentHealth();
+  
   if (newMaxHealth !== oldMaxHealth) {
-    const healthRatio = this.health / oldMaxHealth;
-    this.health = Math.min(this.health, Math.round(newMaxHealth * healthRatio));
+    const healthRatio = currentHealth / oldMaxHealth;
+    this.health = Math.min(currentHealth, Math.round(newMaxHealth * healthRatio));
+  } else {
+    this.health = currentHealth;
   }
+  
   this.lastHealthUpdate = new Date();
 };
 
@@ -860,7 +861,8 @@ characterSchema.pre('save', function(next) {
   if (this.isNew) {
     this.health = this.getMaxHealth();
   } else {
-    this.updateHealth(this.getCurrentHealth());
+    const oldMaxHealth = this.getMaxHealth();
+    this.updateHealthAfterChange(oldMaxHealth);
   }
   
   if (this.isModified('baseStrength') ||
@@ -949,9 +951,9 @@ const gameItemSchema = new mongoose.Schema({
     criticalChance: { type: Number, default: 0 },
     criticalDamage: { type: Number, default: 0 },
     dodge: { type: Number, default: 0 },
-    healthRegen: { type: Number, default: 0 },
+    counterAttack: { type: Number, default: 0 },
     health: { type: Number, default: 0 },
-    counterAttack: { type: Number, default: 0 }
+    healthRegen: { type: Number, default: 0 }
   }
 });
 

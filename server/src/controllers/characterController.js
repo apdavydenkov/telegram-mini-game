@@ -94,7 +94,7 @@ exports.updateCharacter = async (req, res) => {
       return res.status(409).json({ message: 'Конфликт версий. Обновите данные и попробуйте снова.' });
     }
 
-    if (character.finalDistribution) {
+    if (character.zeroPoints) {
       return res.status(400).json({ message: 'Распределение очков уже завершено' });
     }
 
@@ -140,34 +140,54 @@ exports.equipCharItem = async (req, res) => {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const charItem = character.inventory.find(charItem => charItem._id.toString() === charItemId);
-    if (!charItem || !charItem.gameItem) {
+    const charItemToEquip = character.inventory.find(charItem => charItem._id.toString() === charItemId);
+    if (!charItemToEquip || !charItemToEquip.gameItem) {
       return res.status(404).json({ message: 'Предмет не найден в инвентаре или не содержит данных gameItem' });
     }
 
-    const itemSlot = charItem.gameItem.type;
+    const gameItemType = charItemToEquip.gameItem.type;
 
     // Если предмет уже экипирован, снимаем его
-    if (charItem.isEquipped) {
-      charItem.isEquipped = false;
-      charItem.slot = null;
+    if (charItemToEquip.isEquipped) {
+      charItemToEquip.isEquipped = false;
+      charItemToEquip.slot = null;
     } else {
-      // Снимаем текущий предмет в этом слоте, если он есть
-      const currentEquipped = character.inventory.find(charItem => charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === itemSlot);
-      if (currentEquipped) {
-        currentEquipped.isEquipped = false;
-        currentEquipped.slot = null;
-        await currentEquipped.save();
+      // Логика для расходуемых предметов
+      if (gameItemType === 'useful') {
+        const usefulSlots = ['useful1', 'useful2', 'useful3'];
+        const emptySlot = usefulSlots.find(slot => 
+          !character.inventory.some(charItem => charItem.isEquipped && charItem.slot === slot)
+        );
+        
+        if (emptySlot) {
+          charItemToEquip.slot = emptySlot;
+        } else {
+          // Если все слоты заняты, заменяем предмет в третьем слоте
+          const charItemInThirdSlot = character.inventory.find(charItem => charItem.isEquipped && charItem.slot === 'useful3');
+          if (charItemInThirdSlot) {
+            charItemInThirdSlot.isEquipped = false;
+            charItemInThirdSlot.slot = null;
+            await charItemInThirdSlot.save();
+          }
+          charItemToEquip.slot = 'useful3';
+        }
+      } else {
+        // Для остальных типов предметов логика остается прежней
+        const equippedCharItem = character.inventory.find(charItem => 
+          charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === gameItemType
+        );
+        if (equippedCharItem) {
+          equippedCharItem.isEquipped = false;
+          equippedCharItem.slot = null;
+          await equippedCharItem.save();
+        }
+        charItemToEquip.slot = gameItemType;
       }
-
-      // Экипируем новый предмет
-      charItem.isEquipped = true;
-      charItem.slot = itemSlot;
+      
+      charItemToEquip.isEquipped = true;
     }
 
-    await charItem.save();
-    
-    // Здоровье обновится автоматически в pre-save хуке
+    await charItemToEquip.save();
     await character.save();
 
     const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
