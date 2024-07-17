@@ -1,6 +1,7 @@
 const Character = require('../models/Character');
 const User = require('../models/User');
-
+const GameItem = require('../models/GameItem');
+const CharItem = require('../models/CharItem');
 
 exports.createCharacter = async (req, res) => {
   try {
@@ -39,9 +40,10 @@ exports.createCharacter = async (req, res) => {
     // Получаем данные о здоровье
     const healthData = character.getHealthData();
 
-    // Добавляем healthData к ответу
+    // Добавляем healthData и calculatedStats к ответу
     const characterData = character.toObject();
     characterData.healthData = healthData;
+    characterData.calculatedStats = character.recalculateStats();
 
     res.status(201).json(characterData);
   } catch (error) {
@@ -64,7 +66,7 @@ exports.getCharacter = async (req, res) => {
     const healthData = character.getHealthData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.calculatedStats;
+    characterData.calculatedStats = character.recalculateStats();
     
     res.json(characterData);
   } catch (error) {
@@ -110,7 +112,7 @@ exports.updateCharacter = async (req, res) => {
     const healthData = character.getHealthData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.calculatedStats;
+    characterData.calculatedStats = character.recalculateStats();
 
     res.json(characterData);
   } catch (error) {
@@ -122,17 +124,21 @@ exports.updateCharacter = async (req, res) => {
 exports.equipCharItem = async (req, res) => {
   try {
     const { charItemId } = req.body;
-    const character = await Character.findOne({ user: req.user._id }).populate('inventory');
+    const character = await Character.findOne({ user: req.user._id }).populate({
+      path: 'inventory',
+      populate: { path: 'gameItem' }
+    });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
     const charItem = character.inventory.find(item => item._id.toString() === charItemId);
-    if (!charItem) {
-      return res.status(404).json({ message: 'Предмет не найден в инвентаре' });
+    if (!charItem || !charItem.gameItem) {
+      return res.status(404).json({ message: 'Предмет не найден в инвентаре или не содержит данных gameItem' });
     }
 
     const itemSlot = charItem.gameItem.type;
+    const oldMaxHealth = character.getMaxHealth();
 
     // Если предмет уже экипирован, снимаем его
     if (charItem.isEquipped) {
@@ -140,7 +146,7 @@ exports.equipCharItem = async (req, res) => {
       charItem.slot = null;
     } else {
       // Снимаем текущий предмет в этом слоте, если он есть
-      const currentEquipped = character.inventory.find(item => item.isEquipped && item.gameItem.type === itemSlot);
+      const currentEquipped = character.inventory.find(item => item.isEquipped && item.gameItem && item.gameItem.type === itemSlot);
       if (currentEquipped) {
         currentEquipped.isEquipped = false;
         currentEquipped.slot = null;
@@ -153,9 +159,22 @@ exports.equipCharItem = async (req, res) => {
     }
 
     await charItem.save();
+    
+    character.recalculateStats();
+    character.updateHealthAfterEquip(oldMaxHealth);
+    
     await character.save();
 
-    res.json(await character.populate('inventory.gameItem'));
+    const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
+      path: 'inventory',
+      populate: { path: 'gameItem' }
+    });
+    const healthData = updatedCharacter.getHealthData();
+    const characterData = updatedCharacter.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = updatedCharacter.recalculateStats();
+
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка экипировки предмета:', error);
     res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });

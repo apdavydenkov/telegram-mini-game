@@ -632,9 +632,9 @@ const Character = ({ character }) => {
   }
 
   const renderEquippedItem = (slot) => {
-    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.slot === slot);
+    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.gameItem.type === slot);
     return equippedItem ? (
-      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${slot}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
+      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${equippedItem.gameItem.name}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
     ) : (
       <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
     );
@@ -845,26 +845,36 @@ import { APP_SERVER_URL } from '../../config/config';
 
 const CharacterStats = ({ character, onCharacterUpdate }) => {
   const [updatedCharacter, setUpdatedCharacter] = useState(character);
-  const [currentHealth, setCurrentHealth] = useState(character.healthData.currentHealth);
+  const [currentHealth, setCurrentHealth] = useState(character?.healthData?.currentHealth || 0);
   const [error, setError] = useState(null);
 
   useEffect(() => {
     setUpdatedCharacter(character);
-    setCurrentHealth(character.healthData.currentHealth);
+    if (character && character.healthData) {
+      setCurrentHealth(character.healthData.currentHealth);
 
-    const updateHealth = () => {
-      const now = new Date();
-      const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-      const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-      const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
-      setCurrentHealth(Math.round(newHealth * 100) / 100);
-    };
+      const updateHealth = () => {
+        const now = new Date();
+        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
+        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
+        const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
+        setCurrentHealth(Math.round(newHealth * 100) / 100);
+      };
 
-    updateHealth();
-    const intervalId = setInterval(updateHealth, 1000);
+      updateHealth();
+      const intervalId = setInterval(updateHealth, 1000);
 
-    return () => clearInterval(intervalId);
+      return () => clearInterval(intervalId);
+    }
   }, [character]);
+
+  const calculateTotalStat = (baseStat, statName) => {
+    if (!updatedCharacter || !updatedCharacter.inventory) return baseStat;
+
+    const equippedItems = updatedCharacter.inventory.filter(item => item.isEquipped);
+    const bonusStat = equippedItems.reduce((sum, item) => sum + (item.gameItem?.stats?.[statName] || 0), 0);
+    return baseStat + bonusStat;
+  };
 
   const handleStatIncrease = async (stat) => {
     if (updatedCharacter.finalDistribution) return;
@@ -907,27 +917,37 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     }
   };
 
-  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => (
-    <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
-      <span className="flex items-center text-gray-700">
-        <Icon className="mr-2 text-blue-500" />
-        {label}:
-      </span>
-      <div className="flex items-center">
-        <span className="font-semibold text-blue-600 mx-2">
-          {maxValue !== undefined ? `${Math.round(value)}/${maxValue}` : value}
+  const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => {
+    if (!stat && value === undefined) return null;
+
+    const baseValue = updatedCharacter[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
+    const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
+    const bonusValue = stat ? totalValue - baseValue : 0;
+
+    return (
+      <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
+        <span className="flex items-center text-gray-700">
+          <Icon className="mr-2 text-blue-500" />
+          {label}:
         </span>
-        {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
-          <button
-            onClick={() => handleStatIncrease(stat)}
-            className="w-6 h-6 bg-green-500 text-white rounded"
-          >
-            +
-          </button>
-        )}
+        <div className="flex items-center">
+          <span className="font-semibold text-blue-600 mx-2">
+            {maxValue !== undefined ? `${Math.round(totalValue)}/${maxValue}` : 
+             typeof totalValue === 'number' ? totalValue.toFixed(2) : totalValue}
+            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{bonusValue})</span>}
+          </span>
+          {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
+            <button
+              onClick={() => handleStatIncrease(stat)}
+              className="w-6 h-6 bg-green-500 text-white rounded"
+            >
+              +
+            </button>
+          )}
+        </div>
       </div>
-    </div>
-  );
+    );
+  };
 
   if (!updatedCharacter || !updatedCharacter.calculatedStats) {
     return <div>Загрузка характеристик...</div>;
@@ -940,11 +960,11 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       {error && <div className="col-span-2 text-red-500">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={updatedCharacter.baseStrength} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={updatedCharacter.baseDexterity} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={updatedCharacter.baseIntelligence} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={updatedCharacter.baseEndurance} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={updatedCharacter.baseCharisma} stat="charisma" />
+        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(updatedCharacter.baseStrength, 'strength')} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(updatedCharacter.baseDexterity, 'dexterity')} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(updatedCharacter.baseIntelligence, 'intelligence')} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(updatedCharacter.baseEndurance, 'endurance')} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(updatedCharacter.baseCharisma, 'charisma')} stat="charisma" />
         <StatParam
           icon={FaHeart}
           label="Здоровье"
@@ -961,8 +981,8 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
       </div>
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Боевые характеристики</h3>
-        <StatParam icon={FaFistRaised} label="Урон" value={Math.round(calculatedStats.damage)} isAdjustable={false} />
-        <StatParam icon={FaShieldAlt} label="Броня" value={Math.round(calculatedStats.armor)} isAdjustable={false} />
+        <StatParam icon={FaFistRaised} label="Урон" value={calculatedStats.damage} isAdjustable={false} />
+        <StatParam icon={FaShieldAlt} label="Броня" value={calculatedStats.armor} isAdjustable={false} />
         <StatParam icon={FaBullseye} label="Шанс крита" value={`${calculatedStats.criticalChance.toFixed(2)}%`} isAdjustable={false} />
         <StatParam icon={FaBolt} label="Сила крита" value={`${calculatedStats.criticalDamage.toFixed(2)}%`} isAdjustable={false} />
         <StatParam icon={FaWind} label="Уворот" value={`${calculatedStats.dodge.toFixed(2)}%`} isAdjustable={false} />
@@ -1055,11 +1075,11 @@ const Dashboard = () => {
     setCharacter(updatedCharacter);
   };
 
-  const handleEquipItem = async (itemId, slot) => {
+  const handleEquipItem = async (itemId) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${APP_SERVER_URL}/api/character/equip`,
-        { itemId, slot },
+        { charItemId: itemId },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       setCharacter(response.data);
@@ -1099,7 +1119,7 @@ const Dashboard = () => {
           </div>
           <TabContent>
             {activeTab === 'characterstats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} />}
-            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onEquipItem={handleEquipItem} />}
+            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onClickInventoryItem={handleEquipItem} />}
             {activeTab === 'skills' && <Skills skills={character.skills || []} />}
           </TabContent>
         </>
@@ -1113,7 +1133,7 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard;
+export default Dashboard; 
 
 // Далее код файла components\Inventory\Inventory.js:
 import React, { useState, useEffect } from 'react';
@@ -1158,11 +1178,10 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
 
   return (
     <div
-      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${
-        itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
-      }`}
+      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
+        }`}
       style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id, itemDetails?.gameItem?.type)}
+      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id)}
     >
       {itemDetails && (
         <>
@@ -1171,6 +1190,11 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
             <div className="font-bold truncate w-full">{itemDetails.gameItem.name}</div>
             <div>x{itemDetails.quantity}</div>
           </div>
+          {itemDetails.isEquipped && (
+            <div className="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 rounded-bl">
+              Экипировано
+            </div>
+          )}
         </>
       )}
     </div>
@@ -1221,14 +1245,14 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
       </div>
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
         {filteredInventory.map((item, index) => (
-          <InventorySlot 
+          <InventorySlot
             key={`${item._id}-${index}`}
-            inventoryItem={item} 
+            inventoryItem={item}
             onClickInventoryItem={onClickInventoryItem}
           />
         ))}
         {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
-          <div 
+          <div
             key={`empty-${index}`}
             className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center"
           />

@@ -181,7 +181,8 @@ exports.makeAdmin = async (req, res) => {
 // Далее код файла controllers\characterController.js:
 const Character = require('../models/Character');
 const User = require('../models/User');
-
+const GameItem = require('../models/GameItem');
+const CharItem = require('../models/CharItem');
 
 exports.createCharacter = async (req, res) => {
   try {
@@ -220,9 +221,10 @@ exports.createCharacter = async (req, res) => {
     // Получаем данные о здоровье
     const healthData = character.getHealthData();
 
-    // Добавляем healthData к ответу
+    // Добавляем healthData и calculatedStats к ответу
     const characterData = character.toObject();
     characterData.healthData = healthData;
+    characterData.calculatedStats = character.recalculateStats();
 
     res.status(201).json(characterData);
   } catch (error) {
@@ -245,7 +247,7 @@ exports.getCharacter = async (req, res) => {
     const healthData = character.getHealthData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.calculatedStats;
+    characterData.calculatedStats = character.recalculateStats();
     
     res.json(characterData);
   } catch (error) {
@@ -291,7 +293,7 @@ exports.updateCharacter = async (req, res) => {
     const healthData = character.getHealthData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.calculatedStats;
+    characterData.calculatedStats = character.recalculateStats();
 
     res.json(characterData);
   } catch (error) {
@@ -303,37 +305,57 @@ exports.updateCharacter = async (req, res) => {
 exports.equipCharItem = async (req, res) => {
   try {
     const { charItemId } = req.body;
-    const character = await Character.findOne({ user: req.user._id });
+    const character = await Character.findOne({ user: req.user._id }).populate({
+      path: 'inventory',
+      populate: { path: 'gameItem' }
+    });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const charItem = await CharItem.findById(charItemId).populate('gameItem');
-    if (!charItem) {
-      return res.status(404).json({ message: 'Предмет не найден' });
+    const charItem = character.inventory.find(item => item._id.toString() === charItemId);
+    if (!charItem || !charItem.gameItem) {
+      return res.status(404).json({ message: 'Предмет не найден в инвентаре или не содержит данных gameItem' });
     }
 
-    // Проверка, принадлежит ли предмет персонажу
-    if (charItem.character.toString() !== character._id.toString()) {
-      return res.status(403).json({ message: 'Этот предмет не принадлежит персонажу' });
+    const itemSlot = charItem.gameItem.type;
+    const oldMaxHealth = character.getMaxHealth();
+
+    // Если предмет уже экипирован, снимаем его
+    if (charItem.isEquipped) {
+      charItem.isEquipped = false;
+      charItem.slot = null;
+    } else {
+      // Снимаем текущий предмет в этом слоте, если он есть
+      const currentEquipped = character.inventory.find(item => item.isEquipped && item.gameItem && item.gameItem.type === itemSlot);
+      if (currentEquipped) {
+        currentEquipped.isEquipped = false;
+        currentEquipped.slot = null;
+        await currentEquipped.save();
+      }
+
+      // Экипируем новый предмет
+      charItem.isEquipped = true;
+      charItem.slot = itemSlot;
     }
 
-    // Снимаем текущий предмет, если он есть
-    const currentEquipped = await CharItem.findOne({ character: character._id, slot: charItem.gameItem.type, isEquipped: true });
-    if (currentEquipped) {
-      await currentEquipped.unequip();
-    }
-
-    // Экипируем новый предмет
-    charItem.slot = charItem.gameItem.type;
-    await charItem.equip();
-
-    // Обновляем персонажа
-    character.calculatedStats = character.calculatedStats; // Это вызовет пересчет статов
-
+    await charItem.save();
+    
+    character.recalculateStats();
+    character.updateHealthAfterEquip(oldMaxHealth);
+    
     await character.save();
 
-    res.json(character);
+    const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
+      path: 'inventory',
+      populate: { path: 'gameItem' }
+    });
+    const healthData = updatedCharacter.getHealthData();
+    const characterData = updatedCharacter.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = updatedCharacter.recalculateStats();
+
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка экипировки предмета:', error);
     res.status(400).json({ message: 'Ошибка экипировки предмета', error: error.message });
@@ -701,7 +723,11 @@ characterSchema.virtual('finalDistribution').get(function () {
 
 // Метод для получения максимального здоровья
 characterSchema.methods.getMaxHealth = function() {
-  return 10000 + (this.baseEndurance * 10);
+  const baseHealth = 100 + (this.baseEndurance * 10);
+  const bonusHealth = this.inventory
+    .filter(charItem => charItem.isEquipped)
+    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.health || 0), 0);
+  return Math.round(baseHealth + bonusHealth);
 };
 
 // Метод для получения текущего здоровья с учетом регенерации
@@ -713,18 +739,22 @@ characterSchema.methods.getCurrentHealth = function() {
   const maxHealth = this.getMaxHealth();
   const newHealth = Math.min(this.health + regenAmount, maxHealth);
   
-  return Math.round(newHealth * 100) / 100;
+  return Math.round(newHealth);
 };
 
 // Метод для получения скорости регенерации здоровья
 characterSchema.methods.getHealthRegenRate = function() {
-  const maxHealth = this.getMaxHealth();
-  return maxHealth / this.fullRegenTimeInSeconds;
+  const baseRegen = this.getMaxHealth() * 0.01;
+  const bonusRegen = this.baseIntelligence * 0.1;
+  const equipmentRegen = this.inventory
+    .filter(charItem => charItem.isEquipped)
+    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.healthRegen || 0), 0);
+  return baseRegen + bonusRegen + equipmentRegen;
 };
 
 // Метод для обновления здоровья
 characterSchema.methods.updateHealth = function (newHealth) {
-  this.health = Math.min(newHealth, this.getMaxHealth());
+  this.health = Math.min(Math.round(newHealth), this.getMaxHealth());
   this.lastHealthUpdate = new Date();
 };
 
@@ -742,30 +772,61 @@ characterSchema.methods.getHealthData = function () {
   };
 };
 
-// Виртуальное поле для рассчитываемых характеристик
-characterSchema.virtual('calculatedStats').get(function () {
-  const maxHealth = this.getMaxHealth();
-  return {
-    strength: this.baseStrength, // + бонусы от экипировки и навыков
-    dexterity: this.baseDexterity, // + бонусы
-    intelligence: this.baseIntelligence, // + бонусы
-    endurance: this.baseEndurance, // + бонусы
-    charisma: this.baseCharisma, // + бонусы
-    health: this.getCurrentHealth(),
-    maxHealth: maxHealth,
-    damage: this.baseStrength * 2, // Пример расчета урона
-    armor: this.baseEndurance, // Пример расчета брони
-    criticalChance: this.baseDexterity * 0.1, // Пример расчета шанса крита
-    criticalDamage: 150 + this.baseStrength, // Пример расчета силы крита
-    dodge: this.baseDexterity * 0.2, // Пример расчета уворота
-    healthRegen: this.getHealthRegenRate(), // Скорость регенерации здоровья
-    counterAttack: this.baseDexterity * 0.5 // Пример расчета шанса контратаки
+// Метод для пересчета всех характеристик
+characterSchema.methods.recalculateStats = function() {
+  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped);
+  
+  const baseStats = {
+    strength: this.baseStrength,
+    dexterity: this.baseDexterity,
+    intelligence: this.baseIntelligence,
+    endurance: this.baseEndurance,
+    charisma: this.baseCharisma
   };
-});
 
-// Метод для получения максимального количества слотов навыков
-characterSchema.methods.getMaxSkillSlots = function () {
-  return Math.floor(this.level / 5) + 3; // Базовые 3 слота + 1 слот каждые 5 уровней
+  console.log('Base stats:', baseStats);
+
+  equippedCharItems.forEach(charItem => {
+    if (charItem.gameItem && charItem.gameItem.stats) {
+      Object.keys(charItem.gameItem.stats).forEach(stat => {
+        if (baseStats.hasOwnProperty(stat)) {
+          baseStats[stat] += charItem.gameItem.stats[stat];
+        }
+      });
+    }
+  });
+
+  console.log('Stats after equipment:', baseStats);
+
+  const health = this.getCurrentHealth();
+  const maxHealth = this.getMaxHealth();
+
+  this.calculatedStats = {
+    ...baseStats,
+    health,
+    maxHealth,
+    damage: Math.round(baseStats.strength * 1.5 + baseStats.intelligence * 0.5),
+    armor: Math.round(baseStats.endurance * 0.5),
+    criticalChance: parseFloat((baseStats.intelligence * 0.2).toFixed(2)),
+    criticalDamage: Math.round(100 + baseStats.intelligence * 2),
+    dodge: parseFloat((baseStats.dexterity * 0.3).toFixed(2)),
+    counterAttack: parseFloat((baseStats.dexterity * 0.2 + baseStats.charisma * 0.1).toFixed(2)),
+    healthRegen: parseFloat(this.getHealthRegenRate().toFixed(2))
+  };
+
+  console.log('Calculated stats:', this.calculatedStats);
+
+  return this.calculatedStats;
+};
+
+// Метод для обновления здоровья после экипировки/снятия предмета
+characterSchema.methods.updateHealthAfterEquip = function(oldMaxHealth) {
+  const newMaxHealth = this.getMaxHealth();
+  if (newMaxHealth < oldMaxHealth) {
+    const ratio = newMaxHealth / oldMaxHealth;
+    this.health = Math.round(this.health * ratio);
+  }
+  this.lastHealthUpdate = new Date();
 };
 
 // Пре-сохранение для увеличения версии и обновления здоровья
@@ -916,6 +977,8 @@ router.get('/me', authMiddleware, getMe);
 module.exports = router;
 
 // Далее код файла routes\characterRoutes.js:
+const characterController = require('../controllers/characterController');
+
 const express = require('express');
 const { 
   createCharacter, 
@@ -933,7 +996,7 @@ const router = express.Router();
 router.post('/', authMiddleware, createCharacter);
 router.get('/', authMiddleware, getCharacter);
 router.put('/', authMiddleware, updateCharacter);
-router.post('/equip', authMiddleware, equipCharItem);
+router.post('/equip', authMiddleware, characterController.equipCharItem);
 router.post('/addItem', authMiddleware, addItemToInventory);
 router.get('/health', authMiddleware, getHealthData);
 router.post('/damage', authMiddleware, damageCharacter);

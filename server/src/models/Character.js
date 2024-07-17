@@ -60,7 +60,11 @@ characterSchema.virtual('finalDistribution').get(function () {
 
 // Метод для получения максимального здоровья
 characterSchema.methods.getMaxHealth = function() {
-  return 10000 + (this.baseEndurance * 10);
+  const baseHealth = 100 + (this.baseEndurance * 10);
+  const bonusHealth = this.inventory
+    .filter(charItem => charItem.isEquipped)
+    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.health || 0), 0);
+  return Math.round(baseHealth + bonusHealth);
 };
 
 // Метод для получения текущего здоровья с учетом регенерации
@@ -72,18 +76,22 @@ characterSchema.methods.getCurrentHealth = function() {
   const maxHealth = this.getMaxHealth();
   const newHealth = Math.min(this.health + regenAmount, maxHealth);
   
-  return Math.round(newHealth * 100) / 100;
+  return Math.round(newHealth);
 };
 
 // Метод для получения скорости регенерации здоровья
 characterSchema.methods.getHealthRegenRate = function() {
-  const maxHealth = this.getMaxHealth();
-  return maxHealth / this.fullRegenTimeInSeconds;
+  const baseRegen = this.getMaxHealth() * 0.01;
+  const bonusRegen = this.baseIntelligence * 0.1;
+  const equipmentRegen = this.inventory
+    .filter(charItem => charItem.isEquipped)
+    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.healthRegen || 0), 0);
+  return baseRegen + bonusRegen + equipmentRegen;
 };
 
 // Метод для обновления здоровья
 characterSchema.methods.updateHealth = function (newHealth) {
-  this.health = Math.min(newHealth, this.getMaxHealth());
+  this.health = Math.min(Math.round(newHealth), this.getMaxHealth());
   this.lastHealthUpdate = new Date();
 };
 
@@ -101,30 +109,61 @@ characterSchema.methods.getHealthData = function () {
   };
 };
 
-// Виртуальное поле для рассчитываемых характеристик
-characterSchema.virtual('calculatedStats').get(function () {
-  const maxHealth = this.getMaxHealth();
-  return {
-    strength: this.baseStrength, // + бонусы от экипировки и навыков
-    dexterity: this.baseDexterity, // + бонусы
-    intelligence: this.baseIntelligence, // + бонусы
-    endurance: this.baseEndurance, // + бонусы
-    charisma: this.baseCharisma, // + бонусы
-    health: this.getCurrentHealth(),
-    maxHealth: maxHealth,
-    damage: this.baseStrength * 2, // Пример расчета урона
-    armor: this.baseEndurance, // Пример расчета брони
-    criticalChance: this.baseDexterity * 0.1, // Пример расчета шанса крита
-    criticalDamage: 150 + this.baseStrength, // Пример расчета силы крита
-    dodge: this.baseDexterity * 0.2, // Пример расчета уворота
-    healthRegen: this.getHealthRegenRate(), // Скорость регенерации здоровья
-    counterAttack: this.baseDexterity * 0.5 // Пример расчета шанса контратаки
+// Метод для пересчета всех характеристик
+characterSchema.methods.recalculateStats = function() {
+  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped);
+  
+  const baseStats = {
+    strength: this.baseStrength,
+    dexterity: this.baseDexterity,
+    intelligence: this.baseIntelligence,
+    endurance: this.baseEndurance,
+    charisma: this.baseCharisma
   };
-});
 
-// Метод для получения максимального количества слотов навыков
-characterSchema.methods.getMaxSkillSlots = function () {
-  return Math.floor(this.level / 5) + 3; // Базовые 3 слота + 1 слот каждые 5 уровней
+  console.log('Base stats:', baseStats);
+
+  equippedCharItems.forEach(charItem => {
+    if (charItem.gameItem && charItem.gameItem.stats) {
+      Object.keys(charItem.gameItem.stats).forEach(stat => {
+        if (baseStats.hasOwnProperty(stat)) {
+          baseStats[stat] += charItem.gameItem.stats[stat];
+        }
+      });
+    }
+  });
+
+  console.log('Stats after equipment:', baseStats);
+
+  const health = this.getCurrentHealth();
+  const maxHealth = this.getMaxHealth();
+
+  this.calculatedStats = {
+    ...baseStats,
+    health,
+    maxHealth,
+    damage: Math.round(baseStats.strength * 1.5 + baseStats.intelligence * 0.5),
+    armor: Math.round(baseStats.endurance * 0.5),
+    criticalChance: parseFloat((baseStats.intelligence * 0.2).toFixed(2)),
+    criticalDamage: Math.round(100 + baseStats.intelligence * 2),
+    dodge: parseFloat((baseStats.dexterity * 0.3).toFixed(2)),
+    counterAttack: parseFloat((baseStats.dexterity * 0.2 + baseStats.charisma * 0.1).toFixed(2)),
+    healthRegen: parseFloat(this.getHealthRegenRate().toFixed(2))
+  };
+
+  console.log('Calculated stats:', this.calculatedStats);
+
+  return this.calculatedStats;
+};
+
+// Метод для обновления здоровья после экипировки/снятия предмета
+characterSchema.methods.updateHealthAfterEquip = function(oldMaxHealth) {
+  const newMaxHealth = this.getMaxHealth();
+  if (newMaxHealth < oldMaxHealth) {
+    const ratio = newMaxHealth / oldMaxHealth;
+    this.health = Math.round(this.health * ratio);
+  }
+  this.lastHealthUpdate = new Date();
 };
 
 // Пре-сохранение для увеличения версии и обновления здоровья
