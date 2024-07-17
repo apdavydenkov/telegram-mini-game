@@ -37,13 +37,14 @@ exports.createCharacter = async (req, res) => {
     // Обновляем поле hasCharacter у пользователя
     await User.findByIdAndUpdate(req.user._id, { hasCharacter: true });
 
-    // Получаем данные о здоровье
+    // Получаем данные о здоровье и рассчитываем характеристики
     const healthData = character.getHealthData();
+    const calculatedStats = character.recalculateStats();
 
     // Добавляем healthData и calculatedStats к ответу
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.recalculateStats();
+    characterData.calculatedStats = calculatedStats;
 
     res.status(201).json(characterData);
   } catch (error) {
@@ -64,9 +65,10 @@ exports.getCharacter = async (req, res) => {
     }
     
     const healthData = character.getHealthData();
+    const calculatedStats = character.recalculateStats();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.recalculateStats();
+    characterData.calculatedStats = calculatedStats;
     
     res.json(characterData);
   } catch (error) {
@@ -79,7 +81,11 @@ exports.updateCharacter = async (req, res) => {
   try {
     const { baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma, version } = req.body;
     
-    const character = await Character.findOne({ user: req.user._id });
+    const character = await Character.findOne({ user: req.user._id })
+      .populate({
+        path: 'inventory',
+        populate: { path: 'gameItem' }
+      });
     if (!character) {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
@@ -107,12 +113,14 @@ exports.updateCharacter = async (req, res) => {
     character.baseCharisma = baseCharisma;
     character.availablePoints -= pointsSpent;
 
+    // Здоровье обновится автоматически в pre-save хуке
     await character.save();
     
     const healthData = character.getHealthData();
+    const calculatedStats = character.recalculateStats();
     const characterData = character.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = character.recalculateStats();
+    characterData.calculatedStats = calculatedStats;
 
     res.json(characterData);
   } catch (error) {
@@ -132,13 +140,12 @@ exports.equipCharItem = async (req, res) => {
       return res.status(404).json({ message: 'Персонаж не найден' });
     }
 
-    const charItem = character.inventory.find(item => item._id.toString() === charItemId);
+    const charItem = character.inventory.find(charItem => charItem._id.toString() === charItemId);
     if (!charItem || !charItem.gameItem) {
       return res.status(404).json({ message: 'Предмет не найден в инвентаре или не содержит данных gameItem' });
     }
 
     const itemSlot = charItem.gameItem.type;
-    const oldMaxHealth = character.getMaxHealth();
 
     // Если предмет уже экипирован, снимаем его
     if (charItem.isEquipped) {
@@ -146,7 +153,7 @@ exports.equipCharItem = async (req, res) => {
       charItem.slot = null;
     } else {
       // Снимаем текущий предмет в этом слоте, если он есть
-      const currentEquipped = character.inventory.find(item => item.isEquipped && item.gameItem && item.gameItem.type === itemSlot);
+      const currentEquipped = character.inventory.find(charItem => charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === itemSlot);
       if (currentEquipped) {
         currentEquipped.isEquipped = false;
         currentEquipped.slot = null;
@@ -160,9 +167,7 @@ exports.equipCharItem = async (req, res) => {
 
     await charItem.save();
     
-    character.recalculateStats();
-    character.updateHealthAfterEquip(oldMaxHealth);
-    
+    // Здоровье обновится автоматически в pre-save хуке
     await character.save();
 
     const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
@@ -170,9 +175,10 @@ exports.equipCharItem = async (req, res) => {
       populate: { path: 'gameItem' }
     });
     const healthData = updatedCharacter.getHealthData();
+    const calculatedStats = updatedCharacter.recalculateStats();
     const characterData = updatedCharacter.toObject();
     characterData.healthData = healthData;
-    characterData.calculatedStats = updatedCharacter.recalculateStats();
+    characterData.calculatedStats = calculatedStats;
 
     res.json(characterData);
   } catch (error) {
@@ -209,7 +215,17 @@ exports.addItemToInventory = async (req, res) => {
     character.inventory.push(charItem._id);
     await character.save();
 
-    res.json(character);
+    const updatedCharacter = await Character.findOne({ user: req.user._id }).populate({
+      path: 'inventory',
+      populate: { path: 'gameItem' }
+    });
+    const healthData = updatedCharacter.getHealthData();
+    const calculatedStats = updatedCharacter.recalculateStats();
+    const characterData = updatedCharacter.toObject();
+    characterData.healthData = healthData;
+    characterData.calculatedStats = calculatedStats;
+
+    res.json(characterData);
   } catch (error) {
     console.error('Ошибка добавления предмета в инвентарь:', error);
     res.status(400).json({ message: 'Ошибка добавления предмета в инвентарь', error: error.message });

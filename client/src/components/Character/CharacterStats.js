@@ -84,6 +84,18 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
     const bonusValue = stat ? totalValue - baseValue : 0;
 
+    const formatValue = (val) => {
+      if (typeof val === 'number') {
+        // Округляем до целого числа для базовых параметров и здоровья
+        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat) || label === 'Здоровье') {
+          return Math.round(val);
+        }
+        // Для остальных параметров оставляем два знака после запятой
+        return val.toFixed(2);
+      }
+      return val;
+    };
+
     return (
       <div className="flex justify-between items-center p-2 bg-white rounded-lg shadow-sm mb-2">
         <span className="flex items-center text-gray-700">
@@ -92,9 +104,8 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
         </span>
         <div className="flex items-center">
           <span className="font-semibold text-blue-600 mx-2">
-            {maxValue !== undefined ? `${Math.round(totalValue)}/${maxValue}` : 
-             typeof totalValue === 'number' ? totalValue.toFixed(2) : totalValue}
-            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{bonusValue})</span>}
+            {maxValue !== undefined ? `${formatValue(totalValue)}/${formatValue(maxValue)}` : formatValue(totalValue)}
+            {bonusValue > 0 && <span className="text-green-500 ml-1">(+{formatValue(bonusValue)})</span>}
           </span>
           {isAdjustable && !updatedCharacter.finalDistribution && updatedCharacter.availablePoints > 0 && (
             <button

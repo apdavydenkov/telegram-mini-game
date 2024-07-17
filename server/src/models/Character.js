@@ -60,11 +60,26 @@ characterSchema.virtual('finalDistribution').get(function () {
 
 // Метод для получения максимального здоровья
 characterSchema.methods.getMaxHealth = function() {
-  const baseHealth = 100 + (this.baseEndurance * 10);
-  const bonusHealth = this.inventory
-    .filter(charItem => charItem.isEquipped)
-    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.health || 0), 0);
-  return Math.round(baseHealth + bonusHealth);
+  const baseHealth = 100;
+  const healthPerEndurance = 5;
+
+  const baseEnduranceBonus = this.baseEndurance * healthPerEndurance;
+
+  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped && charItem.gameItem);
+  
+  let equipmentEnduranceBonus = 0;
+  let equipmentHealthBonus = 0;
+
+  equippedCharItems.forEach(charItem => {
+    if (charItem.gameItem.stats) {
+      equipmentEnduranceBonus += charItem.gameItem.stats.endurance || 0;
+      equipmentHealthBonus += charItem.gameItem.stats.health || 0;
+    }
+  });
+
+  const totalEnduranceBonus = (this.baseEndurance + equipmentEnduranceBonus) * healthPerEndurance;
+
+  return Math.round(baseHealth + totalEnduranceBonus + equipmentHealthBonus);
 };
 
 // Метод для получения текущего здоровья с учетом регенерации
@@ -81,12 +96,8 @@ characterSchema.methods.getCurrentHealth = function() {
 
 // Метод для получения скорости регенерации здоровья
 characterSchema.methods.getHealthRegenRate = function() {
-  const baseRegen = this.getMaxHealth() * 0.01;
-  const bonusRegen = this.baseIntelligence * 0.1;
-  const equipmentRegen = this.inventory
-    .filter(charItem => charItem.isEquipped)
-    .reduce((sum, charItem) => sum + (charItem.gameItem?.stats?.healthRegen || 0), 0);
-  return baseRegen + bonusRegen + equipmentRegen;
+  const maxHealth = this.getMaxHealth();
+  return maxHealth / this.fullRegenTimeInSeconds;
 };
 
 // Метод для обновления здоровья
@@ -111,7 +122,7 @@ characterSchema.methods.getHealthData = function () {
 
 // Метод для пересчета всех характеристик
 characterSchema.methods.recalculateStats = function() {
-  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped);
+  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped && charItem.gameItem);
   
   const baseStats = {
     strength: this.baseStrength,
@@ -120,8 +131,6 @@ characterSchema.methods.recalculateStats = function() {
     endurance: this.baseEndurance,
     charisma: this.baseCharisma
   };
-
-  console.log('Base stats:', baseStats);
 
   equippedCharItems.forEach(charItem => {
     if (charItem.gameItem && charItem.gameItem.stats) {
@@ -133,15 +142,13 @@ characterSchema.methods.recalculateStats = function() {
     }
   });
 
-  console.log('Stats after equipment:', baseStats);
-
-  const health = this.getCurrentHealth();
   const maxHealth = this.getMaxHealth();
+  const currentHealth = this.getCurrentHealth();
 
   this.calculatedStats = {
     ...baseStats,
-    health,
-    maxHealth,
+    health: currentHealth,
+    maxHealth: maxHealth,
     damage: Math.round(baseStats.strength * 1.5 + baseStats.intelligence * 0.5),
     armor: Math.round(baseStats.endurance * 0.5),
     criticalChance: parseFloat((baseStats.intelligence * 0.2).toFixed(2)),
@@ -151,18 +158,21 @@ characterSchema.methods.recalculateStats = function() {
     healthRegen: parseFloat(this.getHealthRegenRate().toFixed(2))
   };
 
-  console.log('Calculated stats:', this.calculatedStats);
-
   return this.calculatedStats;
 };
 
-// Метод для обновления здоровья после экипировки/снятия предмета
-characterSchema.methods.updateHealthAfterEquip = function(oldMaxHealth) {
+// Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
+characterSchema.methods.updateHealthAfterChange = function(oldMaxHealth) {
   const newMaxHealth = this.getMaxHealth();
-  if (newMaxHealth < oldMaxHealth) {
-    const ratio = newMaxHealth / oldMaxHealth;
-    this.health = Math.round(this.health * ratio);
+  const currentHealth = this.getCurrentHealth();
+  
+  if (newMaxHealth !== oldMaxHealth) {
+    const healthRatio = currentHealth / oldMaxHealth;
+    this.health = Math.min(currentHealth, Math.round(newMaxHealth * healthRatio));
+  } else {
+    this.health = currentHealth;
   }
+  
   this.lastHealthUpdate = new Date();
 };
 
@@ -170,6 +180,9 @@ characterSchema.methods.updateHealthAfterEquip = function(oldMaxHealth) {
 characterSchema.pre('save', function(next) {
   if (this.isNew) {
     this.health = this.getMaxHealth();
+  } else {
+    const oldMaxHealth = this.getMaxHealth();
+    this.updateHealthAfterChange(oldMaxHealth);
   }
   
   if (this.isModified('baseStrength') ||
@@ -181,7 +194,6 @@ characterSchema.pre('save', function(next) {
     this.version += 1;
   }
   
-  this.updateHealth(this.getCurrentHealth());
   next();
 });
 
