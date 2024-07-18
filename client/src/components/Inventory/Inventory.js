@@ -109,7 +109,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot
             key={`${item._id}-${index}`}

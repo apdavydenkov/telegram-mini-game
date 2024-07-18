@@ -20,7 +20,7 @@ const Tab = ({ label, active, onClick }) => (
 );
 
 const TabContent = ({ children }) => (
-  <div className="bg-gray-100 rounded-b-lg rounded-tr-lg p-4">
+  <div className="bg-gray-100 rounded-b-lg p-2">
     {children}
   </div>
 );

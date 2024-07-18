@@ -18,7 +18,7 @@ const Character = ({ character }) => {
   const maxHealth = character.healthData.maxHealth;
 
   return (
-    <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
+    <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
       <div className="grid grid-cols-12 grid-rows-17 gap-1">
         <div className="col-span-12 text-center text-xl font-bold flex items-center justify-center">
           {character.nickname}

@@ -229,7 +229,7 @@ const AdminGameItemForm = () => {
               name="type"
               value={gameItem.type}
               onChange={handleChange}
-              options={['weapon', 'armor', 'accessory', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots']}
+              options={['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful']}
             />
             <SelectField
               label="Редкость"
@@ -608,10 +608,10 @@ const Character = ({ character }) => {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const renderEquippedItem = (slot) => {
-    const equippedItem = character.inventory && character.inventory.find(item => item.isEquipped && item.gameItem.type === slot);
-    return equippedItem ? (
-      <img src={equippedItem.gameItem.image || `https://placehold.co/60x60?text=${equippedItem.gameItem.name}`} alt={equippedItem.gameItem.name} className="w-full h-full object-cover" />
+  const renderEquippedCharItem = (slot) => {
+    const equippedCharItem = character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
+    return equippedCharItem ? (
+      <img src={equippedCharItem.gameItem.image || `https://placehold.co/60x60?text=${equippedCharItem.gameItem.name}`} alt={equippedCharItem.gameItem.name} className="w-full h-full object-cover" />
     ) : (
       <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
     );
@@ -621,7 +621,7 @@ const Character = ({ character }) => {
   const maxHealth = character.healthData.maxHealth;
 
   return (
-    <div className="w-full max-w-3xl mx-auto bg-gray-100 p-4 rounded-lg shadow-md">
+    <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
       <div className="grid grid-cols-12 grid-rows-17 gap-1">
         <div className="col-span-12 text-center text-xl font-bold flex items-center justify-center">
           {character.nickname}
@@ -662,39 +662,39 @@ const Character = ({ character }) => {
 
         {/* Equipment slots */}
         <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('banner')}
+          {renderEquippedCharItem('banner')}
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('helmet')}
+          {renderEquippedCharItem('helmet')}
         </div>
         <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('weapon')}
+          {renderEquippedCharItem('weapon')}
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('shield')}
+          {renderEquippedCharItem('shield')}
         </div>
         <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('armor')}
+          {renderEquippedCharItem('armor')}
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('cloak')}
+          {renderEquippedCharItem('cloak')}
         </div>
         <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('belt')}
+          {renderEquippedCharItem('belt')}
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedItem('boots')}
+          {renderEquippedCharItem('boots')}
         </div>
 
-        {/* Inventory items */}
+        {/* Useful item slots */}
         <div className="col-span-2 row-span-2 col-start-4 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Item+1" alt="Item 1" className="w-full h-full object-cover" />
+          {renderEquippedCharItem('useful1')}
         </div>
         <div className="col-span-2 row-span-2 col-start-6 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Item+2" alt="Item 2" className="w-full h-full object-cover" />
+          {renderEquippedCharItem('useful2')}
         </div>
         <div className="col-span-2 row-span-2 col-start-8 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Item+3" alt="Item 3" className="w-full h-full object-cover" />
+          {renderEquippedCharItem('useful3')}
         </div>
 
         {/* Skills */}
@@ -1009,7 +1009,7 @@ const Tab = ({ label, active, onClick }) => (
 );
 
 const TabContent = ({ children }) => (
-  <div className="bg-gray-100 rounded-b-lg rounded-tr-lg p-4">
+  <div className="bg-gray-100 rounded-b-lg p-2">
     {children}
   </div>
 );
@@ -1103,7 +1103,7 @@ const Dashboard = () => {
         <>
           <Character character={character} />
 
-          <div className="flex mt-4">
+          <div className="flex mt-4 overflow-auto">
             <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
             <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
             <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
@@ -1200,8 +1200,12 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     { id: 'all', name: 'Все' },
     { id: 'weapon', name: 'Оружие' },
     { id: 'armor', name: 'Броня' },
-    { id: 'accessory', name: 'Аксессуары' },
-    { id: 'consumable', name: 'Расходники' },
+    { id: 'cloack', name: 'Плащи' },
+    { id: 'helmet', name: 'Шлемы' },
+    { id: 'belt', name: 'Пояса' },
+    { id: 'boots', name: 'Обувь' },
+    { id: 'banner', name: 'Знамя' },
+    { id: 'useful', name: 'Полезное' },
   ];
 
   useEffect(() => {
@@ -1223,7 +1227,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
 
   return (
     <div>
-      <div className="flex mt-4">
+      <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
@@ -1234,7 +1238,7 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot
             key={`${item._id}-${index}`}
@@ -1296,7 +1300,7 @@ const Skills = ({ skills }) => {
 
   return (
     <div>
-      <div className="flex mt-4">
+      <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
           <CategoryTab
             key={category.id}
@@ -1307,7 +1311,7 @@ const Skills = ({ skills }) => {
           />
         ))}
       </div>
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg rounded-tr-lg">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
         {filteredSkills.map((skill, index) => (
           <SkillSlot key={index} skill={skill} />
         ))}
