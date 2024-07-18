@@ -818,99 +818,43 @@ const CharacterCreate = ({ onCharacterCreated }) => {
 export default CharacterCreate;
 
 // Далее код файла components\Character\CharacterStats.js:
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React from 'react';
 import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaBalanceScale } from 'react-icons/fa';
-import { APP_SERVER_URL } from '../../config/config';
 
-const CharacterStats = ({ character, onCharacterUpdate }) => {
-  const [updatedCharacter, setUpdatedCharacter] = useState(character);
-  const [currentHealth, setCurrentHealth] = useState(character?.healthData?.currentHealth || 0);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    setUpdatedCharacter(character);
-    if (character && character.healthData) {
-      setCurrentHealth(character.healthData.currentHealth);
-
-      const updateHealth = () => {
-        const now = new Date();
-        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-        const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
-        setCurrentHealth(Math.round(newHealth * 100) / 100);
-      };
-
-      updateHealth();
-      const intervalId = setInterval(updateHealth, 1000);
-
-      return () => clearInterval(intervalId);
-    }
-  }, [character]);
-
+const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => {
   const calculateTotalStat = (baseStat, statName) => {
-    if (!updatedCharacter || !updatedCharacter.inventory) return baseStat;
+    if (!character || !character.inventory) return baseStat;
 
-    const equippedItems = updatedCharacter.inventory.filter(item => item.isEquipped);
+    const equippedItems = character.inventory.filter(item => item.isEquipped);
     const bonusStat = equippedItems.reduce((sum, item) => sum + (item.gameItem?.stats?.[statName] || 0), 0);
     return baseStat + bonusStat;
   };
 
   const handleStatIncrease = async (stat) => {
-    if (updatedCharacter.zeroPoints) return;
+    if (character.zeroPoints || isUpdating) return;
 
-    const token = localStorage.getItem('token');
+    const updatedCharacter = {
+      ...character,
+      [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
+      availablePoints: character.availablePoints - 1,
+      version: character.version
+    };
 
-    if (updatedCharacter.availablePoints > 0) {
-      const nextVersionCharacter = {
-        ...updatedCharacter,
-        [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: updatedCharacter[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
-        availablePoints: updatedCharacter.availablePoints - 1
-      };
-
-      try {
-        const response = await axios.put(`${APP_SERVER_URL}/api/character`,
-          { ...nextVersionCharacter, version: updatedCharacter.version },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setUpdatedCharacter(response.data);
-        onCharacterUpdate(response.data);
-        setError(null);
-      } catch (error) {
-        if (error.response && error.response.status === 409) {
-          try {
-            const refreshResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            setUpdatedCharacter(refreshResponse.data);
-            onCharacterUpdate(refreshResponse.data);
-            setError('Данные были обновлены. Пожалуйста, попробуйте снова.');
-          } catch (refreshError) {
-            console.error('Ошибка обновления данных:', refreshError);
-            setError('Не удалось обновить данные. Пожалуйста, обновите страницу.');
-          }
-        } else {
-          console.error('Ошибка обновления характеристик:', error);
-          setError('Не удалось обновить характеристики. Попробуйте еще раз.');
-        }
-      }
-    }
+    await onCharacterUpdate(updatedCharacter);
   };
 
   const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => {
     if (!stat && value === undefined) return null;
 
-    const baseValue = updatedCharacter[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
+    const baseValue = character[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
     const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
     const bonusValue = stat ? totalValue - baseValue : 0;
 
     const formatValue = (val) => {
       if (typeof val === 'number') {
-        // Округляем до целого числа для базовых параметров и здоровья
-        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat) || label === 'Здоровье') {
+        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat)) {
           return Math.round(val);
         }
-        // Для остальных параметров оставляем два знака после запятой
         return val.toFixed(2);
       }
       return val;
@@ -927,10 +871,11 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
             {maxValue !== undefined ? `${formatValue(totalValue)}/${formatValue(maxValue)}` : formatValue(totalValue)}
             {bonusValue > 0 && <span className="text-green-500 ml-1">(+{formatValue(bonusValue)})</span>}
           </span>
-          {isAdjustable && !updatedCharacter.zeroPoints && updatedCharacter.availablePoints > 0 && (
+          {isAdjustable && !character.zeroPoints && character.availablePoints > 0 && (
             <button
               onClick={() => handleStatIncrease(stat)}
-              className="w-6 h-6 bg-green-500 text-white rounded"
+              className={`w-6 h-6 ${isUpdating ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'} text-white rounded transition-colors duration-200`}
+              disabled={isUpdating}
             >
               +
             </button>
@@ -940,33 +885,26 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     );
   };
 
-  if (!updatedCharacter || !updatedCharacter.calculatedStats) {
+  if (!character || !character.calculatedStats) {
     return <div>Загрузка характеристик...</div>;
   }
 
-  const { calculatedStats } = updatedCharacter;
+  const { calculatedStats } = character;
 
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
-      {error && <div className="col-span-2 text-red-500">{error}</div>}
+      {error && <div className="col-span-2 text-red-500 mb-4">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(updatedCharacter.baseStrength, 'strength')} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(updatedCharacter.baseDexterity, 'dexterity')} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(updatedCharacter.baseIntelligence, 'intelligence')} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(updatedCharacter.baseEndurance, 'endurance')} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(updatedCharacter.baseCharisma, 'charisma')} stat="charisma" />
-        <StatParam
-          icon={FaHeart}
-          label="Здоровье"
-          value={currentHealth}
-          maxValue={updatedCharacter.healthData.maxHealth}
-          isAdjustable={false}
-        />
-        {updatedCharacter.availablePoints > 0 && !updatedCharacter.zeroPoints && (
+        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(character.baseStrength, 'strength')} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(character.baseDexterity, 'dexterity')} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(character.baseIntelligence, 'intelligence')} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(character.baseEndurance, 'endurance')} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(character.baseCharisma, 'charisma')} stat="charisma" />
+        {character.availablePoints > 0 && !character.zeroPoints && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
-            Доступные навыки: {updatedCharacter.availablePoints}
+            Доступные навыки: {character.availablePoints}
           </div>
         )}
       </div>
@@ -987,15 +925,15 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
 export default CharacterStats;
 
 // Далее код файла components\Dashboard\Dashboard.js:
-import React, { useEffect, useState } from 'react';
-import axios from 'axios';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Character from '../Character/Character';
 import CharacterStats from '../Character/CharacterStats';
 import CreateCharacter from '../Character/CharacterCreate';
 import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
-import { APP_SERVER_URL } from '../../config/config';
+import useAuth from '../../hooks/useAuth';
+import useCharacter from '../../hooks/useCharacter';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -1009,113 +947,98 @@ const Tab = ({ label, active, onClick }) => (
 );
 
 const TabContent = ({ children }) => (
-  <div className="bg-gray-100 rounded-b-lg p-2">
+  <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
     {children}
   </div>
 );
 
 const Dashboard = () => {
-  const [user, setUser] = useState(null);
-  const [character, setCharacter] = useState(null);
   const [activeTab, setActiveTab] = useState('characterstats');
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const navigate = useNavigate();
+  const { user, loading: authLoading, logout } = useAuth();
+  const { 
+    character, 
+    loading: characterLoading, 
+    error, 
+    isUpdating,
+    updateCharacter, 
+    equipItem, 
+    fetchCharacter 
+  } = useCharacter();
 
-  useEffect(() => {
-    fetchUserData();
-    const intervalId = setInterval(fetchUserData, 5000); // Обновление каждые 5 секунд
-
-    return () => clearInterval(intervalId);
-  }, []);
-
-  const fetchUserData = async () => {
-    const token = localStorage.getItem('token');
-    if (token) {
-      try {
-        setError(null);
-        const userResponse = await axios.get(`${APP_SERVER_URL}/api/auth/me`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
-        setUser(userResponse.data);
-
-        if (userResponse.data.hasCharacter) {
-          const characterResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
-            headers: { Authorization: `Bearer ${token}` }
-          });
-          setCharacter(characterResponse.data);
-        }
-      } catch (error) {
-        console.error('Ошибка получения данных:', error.response?.data || error.message);
-        setError('Ошибка получения данных. Пожалуйста, попробуйте позже.');
-        if (error.response && error.response.status === 401) {
-          localStorage.removeItem('token');
-          navigate('/login');
-        }
-      } finally {
-        setLoading(false);
-      }
-    } else {
-      setError('Необходима авторизация');
-      setLoading(false);
-      navigate('/login');
-    }
-  };
-
-  const handleCharacterUpdate = (updatedCharacter) => {
-    setCharacter(updatedCharacter);
-  };
-
-  const handleEquipItem = async (itemId) => {
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${APP_SERVER_URL}/api/character/equip`,
-        { charItemId: itemId },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      setCharacter(response.data);
-    } catch (error) {
-      console.error('Ошибка экипировки предмета:', error);
-      setError('Ошибка экипировки предмета. Пожалуйста, попробуйте снова.');
-    }
-  };
-
-  const handleCharacterCreated = (newCharacter) => {
-    setCharacter(newCharacter);
-    setUser(prevUser => ({ ...prevUser, hasCharacter: true }));
-  };
-
-  if (loading) {
+  if (authLoading || characterLoading) {
     return <div className="text-center p-4">Загрузка...</div>;
   }
 
-  if (error) {
-    return <div className="text-center p-4 text-red-500">{error}</div>;
+  if (!user) {
+    navigate('/login');
+    return null;
   }
 
-  if (!user) {
-    return <div className="text-center p-4">Необходима авторизация</div>;
-  }
+  const handleCharacterUpdate = async (updatedCharacter) => {
+    await updateCharacter(updatedCharacter);
+  };
+
+  const handleEquipItem = async (itemId) => {
+    await equipItem(itemId);
+  };
+
+  const handleCharacterCreated = () => {
+    fetchCharacter();
+  };
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
 
   return (
-    <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+    <div className="max-w-4xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Добро пожаловать, {user.username}!</h1>
+        <button 
+          onClick={handleLogout} 
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
+        >
+          Выйти
+        </button>
+      </div>
+      
+      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+        <strong className="font-bold">Ошибка!</strong>
+        <span className="block sm:inline"> {error}</span>
+      </div>}
+      
       {character ? (
         <>
           <Character character={character} />
 
-          <div className="flex mt-4 overflow-auto">
+          <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
             <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
             <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
             <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
           </div>
+          
           <TabContent>
-            {activeTab === 'characterstats' && <CharacterStats character={character} onCharacterUpdate={handleCharacterUpdate} />}
-            {activeTab === 'inventory' && <Inventory inventory={character.inventory || []} onClickInventoryItem={handleEquipItem} />}
+            {activeTab === 'characterstats' && (
+              <CharacterStats 
+                character={character} 
+                onCharacterUpdate={handleCharacterUpdate}
+                isUpdating={isUpdating}
+                error={error}
+              />
+            )}
+            {activeTab === 'inventory' && (
+              <Inventory 
+                inventory={character.inventory || []} 
+                onClickInventoryItem={handleEquipItem}
+              />
+            )}
             {activeTab === 'skills' && <Skills skills={character.skills || []} />}
           </TabContent>
         </>
       ) : (
-        <div className="max-w-2xl mx-auto bg-white p-4 rounded-lg shadow-lg">
+        <div className="bg-white p-4 rounded-lg shadow-lg">
           <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
           <CreateCharacter onCharacterCreated={handleCharacterCreated} />
         </div>
@@ -1124,7 +1047,7 @@ const Dashboard = () => {
   );
 };
 
-export default Dashboard; 
+export default Dashboard;
 
 // Далее код файла components\Inventory\Inventory.js:
 import React, { useState, useEffect } from 'react';
@@ -1331,6 +1254,237 @@ export const APP_SERVER_URL = 'http://localhost:5000';
 export const APP_PORT = '3000';
 export const APP_SERVER_PORT = '5000';
 
+// Далее код файла hooks\useAuth.js:
+import { useState, useEffect, useCallback } from 'react';
+import { auth } from '../services/api';
+import { useNavigate } from 'react-router-dom';
+
+const useAuth = () => {
+  const [user, setUser] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
+
+  const loadUser = useCallback(async () => {
+    try {
+      const { data } = await auth.getMe();
+      setUser(data);
+    } catch (error) {
+      console.error('Error loading user:', error);
+      setUser(null);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadUser();
+  }, [loadUser]);
+
+  const login = async (username, password) => {
+    try {
+      const { data } = await auth.login(username, password);
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Login error:', error);
+      throw error;
+    }
+  };
+
+  const register = async (username, email, password) => {
+    try {
+      const { data } = await auth.register(username, email, password);
+      localStorage.setItem('token', data.token);
+      setUser(data.user);
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('Registration error:', error);
+      throw error;
+    }
+  };
+
+  const logout = () => {
+    localStorage.removeItem('token');
+    setUser(null);
+    navigate('/login');
+  };
+
+  return { user, loading, login, register, logout };
+};
+
+export default useAuth;
+
+// Далее код файла hooks\useCharacter.js:
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { character } from '../services/api';
+
+const useCharacter = () => {
+  const [characterData, setCharacterData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [isUpdating, setIsUpdating] = useState(false);
+  const healthUpdateInterval = useRef(null);
+  const updateTimeoutRef = useRef(null);
+
+  const calculateMaxHealth = useCallback((char) => {
+    if (!char) return 0;
+    const baseHealth = 100;
+    const enduranceBonus = char.baseEndurance * 5;
+    const equipmentBonus = char.inventory
+      .filter(item => item.isEquipped && item.gameItem)
+      .reduce((sum, item) => {
+        return sum + (item.gameItem.stats.endurance || 0) * 5 + (item.gameItem.stats.health || 0);
+      }, 0);
+    return baseHealth + enduranceBonus + equipmentBonus;
+  }, []);
+
+  const updateHealth = useCallback(() => {
+    if (!characterData) return;
+
+    const now = new Date();
+    const secondsSinceLastUpdate = Math.max(0, (now - new Date(characterData.healthData.lastUpdate)) / 1000);
+    const regenAmount = characterData.calculatedStats.healthRegen * secondsSinceLastUpdate;
+    const newHealth = Math.min(
+      characterData.healthData.currentHealth + regenAmount,
+      characterData.healthData.maxHealth
+    );
+
+    setCharacterData(prevData => ({
+      ...prevData,
+      healthData: {
+        ...prevData.healthData,
+        currentHealth: Math.round(newHealth * 100) / 100,
+        lastUpdate: now.toISOString()
+      }
+    }));
+  }, [characterData]);
+
+  const fetchCharacter = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data } = await character.get();
+      const maxHealth = calculateMaxHealth(data);
+      setCharacterData({
+        ...data,
+        healthData: {
+          currentHealth: data.healthData.currentHealth,
+          maxHealth: maxHealth,
+          lastUpdate: new Date().toISOString()
+        },
+        calculatedStats: {
+          ...data.calculatedStats,
+          healthRegen: maxHealth / data.fullRegenTimeInSeconds
+        }
+      });
+    } catch (err) {
+      console.error('Error fetching character:', err);
+      setError('Failed to load character data');
+    } finally {
+      setLoading(false);
+    }
+  }, [calculateMaxHealth]);
+
+  const updateCharacter = useCallback(async (updatedData) => {
+    if (isUpdating) {
+      setError('Please wait, character is being updated...');
+      return;
+    }
+
+    setIsUpdating(true);
+    setError(null);
+
+    if (updateTimeoutRef.current) {
+      clearTimeout(updateTimeoutRef.current);
+    }
+
+    updateTimeoutRef.current = setTimeout(async () => {
+      try {
+        const { data } = await character.update(updatedData);
+        const maxHealth = calculateMaxHealth(data);
+        setCharacterData({
+          ...data,
+          healthData: {
+            currentHealth: data.healthData.currentHealth,
+            maxHealth: maxHealth,
+            lastUpdate: new Date().toISOString()
+          },
+          calculatedStats: {
+            ...data.calculatedStats,
+            healthRegen: maxHealth / data.fullRegenTimeInSeconds
+          }
+        });
+      } catch (err) {
+        console.error('Error updating character:', err);
+        if (err.response && err.response.status === 409) {
+          await fetchCharacter();
+          setError('Data conflict occurred. The latest data has been loaded.');
+        } else {
+          setError('Failed to update character data. Please try again.');
+        }
+      } finally {
+        setIsUpdating(false);
+      }
+    }, 500);
+  }, [calculateMaxHealth, fetchCharacter, isUpdating]);
+
+  const equipItem = useCallback(async (charItemId) => {
+    try {
+      setError(null);
+      const { data } = await character.equipItem(charItemId);
+      const maxHealth = calculateMaxHealth(data);
+      setCharacterData({
+        ...data,
+        healthData: {
+          currentHealth: data.healthData.currentHealth,
+          maxHealth: maxHealth,
+          lastUpdate: new Date().toISOString()
+        },
+        calculatedStats: {
+          ...data.calculatedStats,
+          healthRegen: maxHealth / data.fullRegenTimeInSeconds
+        }
+      });
+    } catch (err) {
+      console.error('Error equipping item:', err);
+      setError('Failed to equip item');
+    }
+  }, [calculateMaxHealth]);
+
+  useEffect(() => {
+    fetchCharacter();
+    return () => {
+      if (updateTimeoutRef.current) {
+        clearTimeout(updateTimeoutRef.current);
+      }
+    };
+  }, [fetchCharacter]);
+
+  useEffect(() => {
+    if (characterData) {
+      healthUpdateInterval.current = setInterval(updateHealth, 1000);
+    }
+    return () => {
+      if (healthUpdateInterval.current) {
+        clearInterval(healthUpdateInterval.current);
+      }
+    };
+  }, [characterData, updateHealth]);
+
+  return {
+    character: characterData,
+    loading,
+    error,
+    isUpdating,
+    updateCharacter,
+    equipItem,
+    fetchCharacter
+  };
+};
+
+export default useCharacter;
+
 // Далее код файла pages\DashboardPage.js:
 import React from 'react';
 import Dashboard from '../components/Dashboard/Dashboard';
@@ -1390,4 +1544,60 @@ const RegisterPage = () => {
 
 export default RegisterPage;
 
+
+// Далее код файла services\api.js:
+import axios from 'axios';
+import { APP_SERVER_URL } from '../config/config';
+
+const api = axios.create({
+  baseURL: APP_SERVER_URL,
+  headers: {
+    'Content-Type': 'application/json',
+  },
+});
+
+// Interceptor для добавления токена к каждому запросу
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers['Authorization'] = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+export const auth = {
+  login: (username, password) => api.post('/api/auth/login', { username, password }),
+  register: (username, email, password) => api.post('/api/auth/register', { username, email, password }),
+  getMe: () => api.get('/api/auth/me'),
+};
+
+export const character = {
+  create: (characterData) => api.post('/api/character', characterData),
+  get: () => api.get('/api/character'),
+  update: (characterData) => api.put('/api/character', characterData),
+  equipItem: (charItemId) => api.post('/api/character/equip', { charItemId }),
+  addItem: (gameItemId, quantity) => api.post('/api/character/addItem', { gameItemId, quantity }),
+  getHealth: () => api.get('/api/character/health'),
+  damage: (damage) => api.post('/api/character/damage', { damage }),
+};
+
+export const gameItem = {
+  getAll: () => api.get('/api/gameItem'),
+  get: (id) => api.get(`/api/gameItem/${id}`),
+  create: (itemData) => api.post('/api/gameItem', itemData),
+  update: (id, itemData) => api.put(`/api/gameItem/${id}`, itemData),
+  delete: (id) => api.delete(`/api/gameItem/${id}`),
+  send: (gameItemId, characterId) => api.post(`/api/gameItem/send/${gameItemId}/${characterId}`),
+};
+
+export const charItem = {
+  get: (id) => api.get(`/api/charItem/${id}`),
+  update: (id, itemData) => api.put(`/api/charItem/${id}`, itemData),
+  delete: (id) => api.delete(`/api/charItem/${id}`),
+};
+
+export default api;
 

@@ -1,96 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import axios from 'axios';
+import React from 'react';
 import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaBalanceScale } from 'react-icons/fa';
-import { APP_SERVER_URL } from '../../config/config';
 
-const CharacterStats = ({ character, onCharacterUpdate }) => {
-  const [updatedCharacter, setUpdatedCharacter] = useState(character);
-  const [currentHealth, setCurrentHealth] = useState(character?.healthData?.currentHealth || 0);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    setUpdatedCharacter(character);
-    if (character && character.healthData) {
-      setCurrentHealth(character.healthData.currentHealth);
-
-      const updateHealth = () => {
-        const now = new Date();
-        const secondsSinceLastUpdate = Math.max(0, (now - new Date(character.healthData.lastUpdate)) / 1000);
-        const regenAmount = character.healthData.regenRate * secondsSinceLastUpdate;
-        const newHealth = Math.min(character.healthData.currentHealth, character.healthData.maxHealth);
-        setCurrentHealth(Math.round(newHealth * 100) / 100);
-      };
-
-      updateHealth();
-      const intervalId = setInterval(updateHealth, 1000);
-
-      return () => clearInterval(intervalId);
-    }
-  }, [character]);
-
+const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => {
   const calculateTotalStat = (baseStat, statName) => {
-    if (!updatedCharacter || !updatedCharacter.inventory) return baseStat;
+    if (!character || !character.inventory) return baseStat;
 
-    const equippedItems = updatedCharacter.inventory.filter(item => item.isEquipped);
+    const equippedItems = character.inventory.filter(item => item.isEquipped);
     const bonusStat = equippedItems.reduce((sum, item) => sum + (item.gameItem?.stats?.[statName] || 0), 0);
     return baseStat + bonusStat;
   };
 
   const handleStatIncrease = async (stat) => {
-    if (updatedCharacter.zeroPoints) return;
+    if (character.zeroPoints || isUpdating) return;
 
-    const token = localStorage.getItem('token');
+    const updatedCharacter = {
+      ...character,
+      [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
+      availablePoints: character.availablePoints - 1,
+      version: character.version
+    };
 
-    if (updatedCharacter.availablePoints > 0) {
-      const nextVersionCharacter = {
-        ...updatedCharacter,
-        [`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`]: updatedCharacter[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] + 1,
-        availablePoints: updatedCharacter.availablePoints - 1
-      };
-
-      try {
-        const response = await axios.put(`${APP_SERVER_URL}/api/character`,
-          { ...nextVersionCharacter, version: updatedCharacter.version },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
-        setUpdatedCharacter(response.data);
-        onCharacterUpdate(response.data);
-        setError(null);
-      } catch (error) {
-        if (error.response && error.response.status === 409) {
-          try {
-            const refreshResponse = await axios.get(`${APP_SERVER_URL}/api/character`, {
-              headers: { Authorization: `Bearer ${token}` }
-            });
-            setUpdatedCharacter(refreshResponse.data);
-            onCharacterUpdate(refreshResponse.data);
-            setError('Данные были обновлены. Пожалуйста, попробуйте снова.');
-          } catch (refreshError) {
-            console.error('Ошибка обновления данных:', refreshError);
-            setError('Не удалось обновить данные. Пожалуйста, обновите страницу.');
-          }
-        } else {
-          console.error('Ошибка обновления характеристик:', error);
-          setError('Не удалось обновить характеристики. Попробуйте еще раз.');
-        }
-      }
-    }
+    await onCharacterUpdate(updatedCharacter);
   };
 
   const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => {
     if (!stat && value === undefined) return null;
 
-    const baseValue = updatedCharacter[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
+    const baseValue = character[`base${stat?.charAt(0).toUpperCase() + stat?.slice(1)}`] || 0;
     const totalValue = stat ? calculateTotalStat(baseValue, stat.toLowerCase()) : value;
     const bonusValue = stat ? totalValue - baseValue : 0;
 
     const formatValue = (val) => {
       if (typeof val === 'number') {
-        // Округляем до целого числа для базовых параметров и здоровья
-        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat) || label === 'Здоровье') {
+        if (['strength', 'dexterity', 'intelligence', 'endurance', 'charisma'].includes(stat)) {
           return Math.round(val);
         }
-        // Для остальных параметров оставляем два знака после запятой
         return val.toFixed(2);
       }
       return val;
@@ -107,10 +51,11 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
             {maxValue !== undefined ? `${formatValue(totalValue)}/${formatValue(maxValue)}` : formatValue(totalValue)}
             {bonusValue > 0 && <span className="text-green-500 ml-1">(+{formatValue(bonusValue)})</span>}
           </span>
-          {isAdjustable && !updatedCharacter.zeroPoints && updatedCharacter.availablePoints > 0 && (
+          {isAdjustable && !character.zeroPoints && character.availablePoints > 0 && (
             <button
               onClick={() => handleStatIncrease(stat)}
-              className="w-6 h-6 bg-green-500 text-white rounded"
+              className={`w-6 h-6 ${isUpdating ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'} text-white rounded transition-colors duration-200`}
+              disabled={isUpdating}
             >
               +
             </button>
@@ -120,33 +65,26 @@ const CharacterStats = ({ character, onCharacterUpdate }) => {
     );
   };
 
-  if (!updatedCharacter || !updatedCharacter.calculatedStats) {
+  if (!character || !character.calculatedStats) {
     return <div>Загрузка характеристик...</div>;
   }
 
-  const { calculatedStats } = updatedCharacter;
+  const { calculatedStats } = character;
 
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
-      {error && <div className="col-span-2 text-red-500">{error}</div>}
+      {error && <div className="col-span-2 text-red-500 mb-4">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
-        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(updatedCharacter.baseStrength, 'strength')} stat="strength" />
-        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(updatedCharacter.baseDexterity, 'dexterity')} stat="dexterity" />
-        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(updatedCharacter.baseIntelligence, 'intelligence')} stat="intelligence" />
-        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(updatedCharacter.baseEndurance, 'endurance')} stat="endurance" />
-        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(updatedCharacter.baseCharisma, 'charisma')} stat="charisma" />
-        <StatParam
-          icon={FaHeart}
-          label="Здоровье"
-          value={currentHealth}
-          maxValue={updatedCharacter.healthData.maxHealth}
-          isAdjustable={false}
-        />
-        {updatedCharacter.availablePoints > 0 && !updatedCharacter.zeroPoints && (
+        <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(character.baseStrength, 'strength')} stat="strength" />
+        <StatParam icon={FaRunning} label="Ловкость" value={calculateTotalStat(character.baseDexterity, 'dexterity')} stat="dexterity" />
+        <StatParam icon={FaBrain} label="Интеллект" value={calculateTotalStat(character.baseIntelligence, 'intelligence')} stat="intelligence" />
+        <StatParam icon={FaHeart} label="Выносливость" value={calculateTotalStat(character.baseEndurance, 'endurance')} stat="endurance" />
+        <StatParam icon={FaSmile} label="Харизма" value={calculateTotalStat(character.baseCharisma, 'charisma')} stat="charisma" />
+        {character.availablePoints > 0 && !character.zeroPoints && (
           <div className="bg-yellow-300 flex items-center p-2 bg-white rounded-lg shadow-sm mb-2 font-semibold text-red-600 animate-pulse">
             <FaStar className="mr-2 text-yellow-500" />
-            Доступные навыки: {updatedCharacter.availablePoints}
+            Доступные навыки: {character.availablePoints}
           </div>
         )}
       </div>
