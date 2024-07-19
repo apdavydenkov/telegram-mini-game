@@ -121,7 +121,7 @@
                 "critPower": 167,
                 "dodge": 2.6,
                 "counterAttack": 6.5,
-                "healthRegen": 1.5
+                "healthRegenRate": 1.5
             }
         }
     },

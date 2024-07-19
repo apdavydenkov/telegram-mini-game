@@ -1,55 +1,6 @@
-// Внимание! Это собранный код всех файлов server проекта. Обязательно изучи его до конца и прими в работу. При необходимости ты можешь создать новые файлы.
+// Собранный код для папки server_src_controllers
 
-// Далее код файла server.js:
-const express = require('express');
-const dotenv = require('dotenv');
-const cors = require('cors');
-const connectDB = require('./config/database');
-const authRoutes = require('./routes/authRoutes');
-const characterRoutes = require('./routes/characterRoutes');
-const gameItemRoutes = require('./routes/gameItemRoutes');
-const charItemRoutes = require('./routes/charItemRoutes');
-
-dotenv.config({ path: '.env' });
-
-const app = express();
-
-// Middleware
-app.use(express.json());
-app.use(cors({
-  origin: 'http://localhost:3000',
-  credentials: true
-}));
-
-// Connect to database
-connectDB();
-
-// Routes
-app.use('/api/auth', authRoutes);
-app.use('/api/character', characterRoutes);
-app.use('/api/gameItem', gameItemRoutes);
-app.use('/api/charItem', charItemRoutes);
-
-const PORT = process.env.PORT || 5000;
-
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
-
-// Далее код файла config\database.js:
-const mongoose = require('mongoose');
-
-const connectDB = async () => {
-  try {
-    await mongoose.connect(process.env.MONGO_URI);
-    console.log('MongoDB connected');
-  } catch (error) {
-    console.error('MongoDB connection error:', error);
-    process.exit(1);
-  }
-};
-
-module.exports = connectDB;
-
-// Далее код файла controllers\authController.js:
+// Код файла controllers\authController.js:
 const User = require('../models/User');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
@@ -137,7 +88,7 @@ exports.login = async (req, res) => {
   }
 };
 
-exports.getMe = async (req, res) => {
+exports.getCurrentUser = async (req, res) => {
   try {
     const user = await User.findById(req.user.id).select('-password');
     res.json({
@@ -178,7 +129,7 @@ exports.makeAdmin = async (req, res) => {
   }
 };
 
-// Далее код файла controllers\characterController.js:
+// Код файла controllers\characterController.js:
 const Character = require('../models/Character');
 const User = require('../models/User');
 const GameItem = require('../models/GameItem');
@@ -220,7 +171,7 @@ exports.createCharacter = async (req, res) => {
 
     // Получаем данные о здоровье и рассчитываем характеристики
     const healthData = character.getHealthData();
-    const calculatedStats = character.recalculateStats();
+    const calculatedStats = character.getStatsData();
 
     // Добавляем healthData и calculatedStats к ответу
     const characterData = character.toObject();
@@ -246,7 +197,7 @@ exports.getCharacter = async (req, res) => {
     }
     
     const healthData = character.getHealthData();
-    const calculatedStats = character.recalculateStats();
+    const calculatedStats = character.getStatsData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
     characterData.calculatedStats = calculatedStats;
@@ -298,7 +249,7 @@ exports.updateCharacter = async (req, res) => {
     await character.save();
     
     const healthData = character.getHealthData();
-    const calculatedStats = character.recalculateStats();
+    const calculatedStats = character.getStatsData();
     const characterData = character.toObject();
     characterData.healthData = healthData;
     characterData.calculatedStats = calculatedStats;
@@ -376,7 +327,7 @@ exports.equipCharItem = async (req, res) => {
       populate: { path: 'gameItem' }
     });
     const healthData = updatedCharacter.getHealthData();
-    const calculatedStats = updatedCharacter.recalculateStats();
+    const calculatedStats = updatedCharacter.getStatsData();
     const characterData = updatedCharacter.toObject();
     characterData.healthData = healthData;
     characterData.calculatedStats = calculatedStats;
@@ -421,7 +372,7 @@ exports.addItemToInventory = async (req, res) => {
       populate: { path: 'gameItem' }
     });
     const healthData = updatedCharacter.getHealthData();
-    const calculatedStats = updatedCharacter.recalculateStats();
+    const calculatedStats = updatedCharacter.getStatsData();
     const characterData = updatedCharacter.toObject();
     characterData.healthData = healthData;
     characterData.calculatedStats = calculatedStats;
@@ -472,7 +423,7 @@ exports.damageCharacter = async (req, res) => {
 
 module.exports = exports;
 
-// Далее код файла controllers\charItemController.js:
+// Код файла controllers\charItemController.js:
 const CharItem = require('../models/CharItem');
 const Character = require('../models/Character');
 const GameItem = require('../models/GameItem');
@@ -561,7 +512,11 @@ exports.deleteCharItem = async (req, res) => {
 
 module.exports = exports;
 
-// Далее код файла controllers\gameItemController.js:
+// Код файла controllers\combatController.js:
+ 
+
+
+// Код файла controllers\gameItemController.js:
 const GameItem = require('../models/gameItem');
 const Character = require('../models/Character');
 const CharItem = require('../models/CharItem');
@@ -622,7 +577,7 @@ exports.deleteGameItem = async (req, res) => {
   }
 };
 
-exports.sendGameItemToCharacter = async (req, res) => {
+exports.sendGameItem = async (req, res) => {
   try {
     const { gameItemId, characterId } = req.params;
 
@@ -660,437 +615,10 @@ exports.sendGameItemToCharacter = async (req, res) => {
 
 module.exports = exports;
 
-// Далее код файла middlewares\adminMiddleware.js:
-// middlewares/adminMiddleware.js
-const adminMiddleware = (req, res, next) => {
-    if (req.user && req.user.role === 'admin') {
-      next();
-    } else {
-      res.status(403).json({ message: 'Access denied. Admin role required.' });
-    }
-  };
-  
-  module.exports = adminMiddleware;
-
-// Далее код файла middlewares\authMiddleware.js:
-const jwt = require('jsonwebtoken');
-const User = require('../models/User');
-
-const authMiddleware = async (req, res, next) => {
-  try {
-    const token = req.header('Authorization').replace('Bearer ', '');
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
-    const user = await User.findOne({ _id: decoded.id });
-
-    if (!user) {
-      throw new Error();
-    }
-
-    req.token = token;
-    req.user = user;
-    next();
-  } catch (error) {
-    res.status(401).send({ error: 'Please authenticate.' });
-  }
-};
-
-module.exports = authMiddleware;
-
-// Далее код файла models\Character.js:
-const mongoose = require('mongoose');
-
-const characterSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  nickname: {
-    type: String,
-    required: true
-  },
-  class: {
-    type: String,
-    enum: ['Warrior', 'Mage', 'Archer'],
-    required: true
-  },
-  level: { type: Number, default: 1 },
-  experience: { type: Number, default: 0 },
-  gold: { type: Number, default: 0 },
-  status: {
-    type: String,
-    enum: ['idle', 'in_battle', 'resting'],
-    default: 'idle'
-  },
-
-  // Базовые характеристики
-  baseStrength: { type: Number, default: 10 },
-  baseDexterity: { type: Number, default: 10 },
-  baseIntelligence: { type: Number, default: 10 },
-  baseEndurance: { type: Number, default: 10 },
-  baseCharisma: { type: Number, default: 10 },
-
-  // Здоровье
-  health: {
-    type: Number,
-    default: function () {
-      return this.getMaxHealth();
-    }
-  },
-
-  lastHealthUpdate: { type: Date, default: Date.now },
-  fullRegenTimeInSeconds: { type: Number, default: 600 }, // 10 минут по умолчанию
-
-  // Очки характеристик
-  availablePoints: { type: Number, default: 5 },
-
-  // Инвентарь
-  inventory: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'CharItem'
-  }],
-
-  version: { type: Number, default: 0 }
-}, { timestamps: true });
-
-// Виртуальное поле для проверки завершения распределения очков
-characterSchema.virtual('zeroPoints').get(function () {
-  return this.availablePoints === 0;
-});
-
-// Метод для получения максимального здоровья
-characterSchema.methods.getMaxHealth = function() {
-  const baseHealth = 100;
-  const healthPerEndurance = 5;
-
-  const baseEnduranceBonus = this.baseEndurance * healthPerEndurance;
-
-  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped && charItem.gameItem);
-  
-  let equipmentEnduranceBonus = 0;
-  let equipmentHealthBonus = 0;
-
-  equippedCharItems.forEach(charItem => {
-    if (charItem.gameItem.stats) {
-      equipmentEnduranceBonus += charItem.gameItem.stats.endurance || 0;
-      equipmentHealthBonus += charItem.gameItem.stats.health || 0;
-    }
-  });
-
-  const totalEnduranceBonus = (this.baseEndurance + equipmentEnduranceBonus) * healthPerEndurance;
-
-  return Math.round(baseHealth + totalEnduranceBonus + equipmentHealthBonus);
-};
-
-// Метод для получения текущего здоровья с учетом регенерации
-characterSchema.methods.getCurrentHealth = function() {
-  const now = new Date();
-  const secondsSinceLastUpdate = Math.max(0, (now - this.lastHealthUpdate) / 1000);
-  const regenRate = this.getHealthRegenRate();
-  const regenAmount = regenRate * secondsSinceLastUpdate;
-  const maxHealth = this.getMaxHealth();
-  const newHealth = Math.min(this.health + regenAmount, maxHealth);
-  
-  return Math.round(newHealth);
-};
-
-// Метод для получения скорости регенерации здоровья
-characterSchema.methods.getHealthRegenRate = function() {
-  const maxHealth = this.getMaxHealth();
-  return maxHealth / this.fullRegenTimeInSeconds;
-};
-
-// Метод для обновления здоровья
-characterSchema.methods.updateHealth = function (newHealth) {
-  this.health = Math.min(Math.round(newHealth), this.getMaxHealth());
-  this.lastHealthUpdate = new Date();
-};
-
-// Метод для получения данных о здоровье
-characterSchema.methods.getHealthData = function () {
-  const currentHealth = this.getCurrentHealth();
-  const maxHealth = this.getMaxHealth();
-  const regenRate = this.getHealthRegenRate();
-
-  return {
-    currentHealth,
-    maxHealth,
-    regenRate,
-    lastUpdate: this.lastHealthUpdate
-  };
-};
-
-// Метод для пересчета всех характеристик
-characterSchema.methods.recalculateStats = function() {
-  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped && charItem.gameItem);
-  
-  const baseStats = {
-    strength: this.baseStrength,
-    dexterity: this.baseDexterity,
-    intelligence: this.baseIntelligence,
-    endurance: this.baseEndurance,
-    charisma: this.baseCharisma
-  };
-
-  equippedCharItems.forEach(charItem => {
-    if (charItem.gameItem && charItem.gameItem.stats) {
-      Object.keys(charItem.gameItem.stats).forEach(stat => {
-        if (baseStats.hasOwnProperty(stat)) {
-          baseStats[stat] += charItem.gameItem.stats[stat];
-        }
-      });
-    }
-  });
-
-  const maxHealth = this.getMaxHealth();
-  const currentHealth = this.getCurrentHealth();
-
-  this.calculatedStats = {
-    ...baseStats,
-    health: currentHealth,
-    maxHealth: maxHealth,
-    damage: Math.round(baseStats.strength * 1.5 + baseStats.intelligence * 0.5),
-    armor: Math.round(baseStats.endurance * 0.5),
-    criticalChance: parseFloat((baseStats.intelligence * 0.2).toFixed(2)),
-    criticalDamage: Math.round(100 + baseStats.intelligence * 2),
-    dodge: parseFloat((baseStats.dexterity * 0.3).toFixed(2)),
-    counterAttack: parseFloat((baseStats.dexterity * 0.2 + baseStats.charisma * 0.1).toFixed(2)),
-    healthRegen: parseFloat(this.getHealthRegenRate().toFixed(2))
-  };
-
-  return this.calculatedStats;
-};
-
-// Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
-characterSchema.methods.updateHealthAfterChange = function(oldMaxHealth) {
-  const newMaxHealth = this.getMaxHealth();
-  const currentHealth = this.getCurrentHealth();
-  
-  if (newMaxHealth !== oldMaxHealth) {
-    const healthRatio = currentHealth / oldMaxHealth;
-    this.health = Math.min(currentHealth, Math.round(newMaxHealth * healthRatio));
-  } else {
-    this.health = currentHealth;
-  }
-  
-  this.lastHealthUpdate = new Date();
-};
-
-// Пре-сохранение для увеличения версии и обновления здоровья
-characterSchema.pre('save', function(next) {
-  if (this.isNew) {
-    this.health = this.getMaxHealth();
-  } else {
-    const oldMaxHealth = this.getMaxHealth();
-    this.updateHealthAfterChange(oldMaxHealth);
-  }
-  
-  if (this.isModified('baseStrength') ||
-      this.isModified('baseDexterity') ||
-      this.isModified('baseIntelligence') ||
-      this.isModified('baseEndurance') ||
-      this.isModified('baseCharisma') ||
-      this.isModified('inventory')) {
-    this.version += 1;
-  }
-  
-  next();
-});
-
-module.exports = mongoose.model('Character', characterSchema);
-
-// Далее код файла models\CharItem.js:
-const mongoose = require('mongoose');
-
-const charItemSchema = new mongoose.Schema({
-  gameItem: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'GameItem', 
-    required: true 
-  },
-  character: { 
-    type: mongoose.Schema.Types.ObjectId, 
-    ref: 'Character', 
-    required: true 
-  },
-  quantity: { 
-    type: Number, 
-    default: 1 
-  },
-  isEquipped: { 
-    type: Boolean, 
-    default: false 
-  },
-  slot: { 
-    type: String, 
-    enum: ['weapon', 'armor', 'helmet', 'shield', 'cloak', 'boots', 'belt', 'banner', 'useful1', 'useful2', 'useful3', null],
-    default: null
-  }
-}, { timestamps: true });
-
-// Метод для экипировки предмета
-charItemSchema.methods.equip = function() {
-  this.isEquipped = true;
-  return this.save();
-};
-
-// Метод для снятия предмета
-charItemSchema.methods.unequip = function() {
-  this.isEquipped = false;
-  this.slot = null;
-  return this.save();
-};
-
-module.exports = mongoose.model('CharItem', charItemSchema);
-
-// Далее код файла models\GameItem.js:
-const mongoose = require('mongoose');
-
-const gameItemSchema = new mongoose.Schema({
-  name: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful'], 
-    required: true 
-  },
-  rarity: {
-    type: String,
-    enum: ['common', 'uncommon', 'rare', 'epic', 'legendary'],
-    default: 'common'
-  },
-  minLevel: { type: Number, default: 1 },
-  image: { type: String, default: '' },
-  stats: {
-    strength: { type: Number, default: 0 },
-    dexterity: { type: Number, default: 0 },
-    intelligence: { type: Number, default: 0 },
-    endurance: { type: Number, default: 0 },
-    charisma: { type: Number, default: 0 },
-    damage: { type: Number, default: 0 },
-    armor: { type: Number, default: 0 },
-    criticalChance: { type: Number, default: 0 },
-    criticalDamage: { type: Number, default: 0 },
-    dodge: { type: Number, default: 0 },
-    counterAttack: { type: Number, default: 0 },
-    health: { type: Number, default: 0 },
-    healthRegen: { type: Number, default: 0 }
-  }
-});
-
-module.exports = mongoose.models.GameItem || mongoose.model('GameItem', gameItemSchema);
-
-// Далее код файла models\User.js:
-// models/User.js
-const mongoose = require('mongoose');
-
-const userSchema = new mongoose.Schema({
-  username: { 
-    type: String, 
-    required: true, 
-    unique: true 
-  },
-  email: { 
-    type: String, 
-    required: true, 
-    unique: true 
-  },
-  password: { 
-    type: String, 
-    required: true 
-  },
-  role: {
-    type: String,
-    enum: ['player', 'moderator', 'admin'],
-    default: 'player'
-  },
-  hasCharacter: { 
-    type: Boolean, 
-    default: false 
-  }
-}, { timestamps: true });
-
-module.exports = mongoose.model('User', userSchema);
-
-// Далее код файла routes\authRoutes.js:
-const express = require('express');
-const router = express.Router();
-const { register, login, getMe, makeAdmin } = require('../controllers/authController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
-router.post('/register', register);
-router.post('/login', login);
-router.post('/make-admin', authMiddleware, makeAdmin);
-router.get('/me', authMiddleware, getMe);
+// Код файла controllers\inventoryController.js:
+ 
 
 
-module.exports = router;
-
-// Далее код файла routes\characterRoutes.js:
-const characterController = require('../controllers/characterController');
-
-const express = require('express');
-const { 
-  createCharacter, 
-  getCharacter, 
-  updateCharacter, 
-  equipCharItem,
-  addItemToInventory,
-  getHealthData,
-  damageCharacter
-} = require('../controllers/characterController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
-const router = express.Router();
-
-router.post('/', authMiddleware, createCharacter);
-router.get('/', authMiddleware, getCharacter);
-router.put('/', authMiddleware, updateCharacter);
-router.post('/equip', authMiddleware, characterController.equipCharItem);
-router.post('/addItem', authMiddleware, addItemToInventory);
-router.get('/health', authMiddleware, getHealthData);
-router.post('/damage', authMiddleware, damageCharacter);
-
-module.exports = router;
-
-// Далее код файла routes\charItemRoutes.js:
-const express = require('express');
-const { 
-  createCharItem, 
-  getCharItemById, 
-  updateCharItem, 
-  deleteCharItem 
-} = require('../controllers/charItemController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
-const router = express.Router();
-
-router.post('/', authMiddleware, createCharItem);
-router.get('/:id', authMiddleware, getCharItemById);
-router.put('/:id', authMiddleware, updateCharItem);
-router.delete('/:id', authMiddleware, deleteCharItem);
-
-module.exports = router;
-
-// Далее код файла routes\gameItemRoutes.js:
-const express = require('express');
-const router = express.Router();
-const { 
-  createGameItem, 
-  getAllGameItems, 
-  getGameItemById, 
-  updateGameItem, 
-  deleteGameItem,
-  sendGameItemToCharacter
-} = require('../controllers/gameItemController');
-const authMiddleware = require('../middlewares/authMiddleware');
-const adminMiddleware = require('../middlewares/adminMiddleware');
-
-router.post('/', authMiddleware, adminMiddleware, createGameItem);
-router.get('/', authMiddleware, getAllGameItems);
-router.get('/:id', authMiddleware, getGameItemById);
-router.put('/:id', authMiddleware, adminMiddleware, updateGameItem);
-router.delete('/:id', authMiddleware, adminMiddleware, deleteGameItem);
-router.post('/send/:gameItemId/:characterId', authMiddleware, adminMiddleware, sendGameItemToCharacter);
-
-module.exports = router;
+// Код файла controllers\skillController.js:
+ 
 

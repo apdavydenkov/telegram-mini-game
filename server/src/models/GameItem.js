@@ -27,7 +27,7 @@ const gameItemSchema = new mongoose.Schema({
     dodge: { type: Number, default: 0 },
     counterAttack: { type: Number, default: 0 },
     health: { type: Number, default: 0 },
-    healthRegen: { type: Number, default: 0 }
+    healthRegenRate: { type: Number, default: 0 }
   }
 });
 

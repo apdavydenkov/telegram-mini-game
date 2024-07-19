@@ -1,15 +1,24 @@
-const GameItem = require('../models/gameItem');
+const GameItem = require('../models/GameItem');
 const Character = require('../models/Character');
 const CharItem = require('../models/CharItem');
-const mongoose = require('mongoose');
+
+const handleError = (res, error, message) => {
+  console.error(`${message}:`, error);
+  res.status(400).json({ message, error: error.message });
+};
+
+const getGameItem = async (id) => {
+  const gameItem = await GameItem.findById(id);
+  if (!gameItem) throw new Error('Игровой предмет не найден');
+  return gameItem;
+};
 
 exports.createGameItem = async (req, res) => {
   try {
-    const gameItem = new GameItem(req.body);
-    await gameItem.save();
+    const gameItem = await GameItem.create(req.body);
     res.status(201).json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error creating game item', error: error.message });
+    handleError(res, error, 'Ошибка создания игрового предмета');
   }
 };
 
@@ -18,79 +27,63 @@ exports.getAllGameItems = async (req, res) => {
     const gameItems = await GameItem.find();
     res.json(gameItems);
   } catch (error) {
-    res.status(400).json({ message: 'Error fetching game items', error: error.message });
+    handleError(res, error, 'Ошибка получения игровых предметов');
   }
 };
 
 exports.getGameItemById = async (req, res) => {
   try {
-    const gameItem = await GameItem.findById(req.params.id);
-    if (!gameItem) {
-      return res.status(404).json({ message: 'Game item not found' });
-    }
+    const gameItem = await getGameItem(req.params.id);
     res.json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error fetching game item', error: error.message });
+    handleError(res, error, 'Ошибка получения игрового предмета');
   }
 };
 
 exports.updateGameItem = async (req, res) => {
   try {
     const gameItem = await GameItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
-    if (!gameItem) {
-      return res.status(404).json({ message: 'Game item not found' });
-    }
+    if (!gameItem) throw new Error('Игровой предмет не найден');
     res.json(gameItem);
   } catch (error) {
-    res.status(400).json({ message: 'Error updating game item', error: error.message });
+    handleError(res, error, 'Ошибка обновления игрового предмета');
   }
 };
 
 exports.deleteGameItem = async (req, res) => {
   try {
     const gameItem = await GameItem.findByIdAndDelete(req.params.id);
-    if (!gameItem) {
-      return res.status(404).json({ message: 'Game item not found' });
-    }
-    res.json({ message: 'Game item deleted successfully' });
+    if (!gameItem) throw new Error('Игровой предмет не найден');
+    res.json({ message: 'Игровой предмет успешно удален' });
   } catch (error) {
-    res.status(400).json({ message: 'Error deleting game item', error: error.message });
+    handleError(res, error, 'Ошибка удаления игрового предмета');
   }
 };
 
-exports.sendGameItemToCharacter = async (req, res) => {
+exports.sendGameItem = async (req, res) => {
   try {
     const { gameItemId, characterId } = req.params;
-
-    const gameItem = await GameItem.findById(gameItemId);
-    if (!gameItem) {
-      return res.status(404).json({ message: 'Game item not found' });
-    }
+    const [gameItem, character] = await Promise.all([
+      getGameItem(gameItemId),
+      Character.findById(characterId)
+    ]);
     
-    const character = await Character.findById(characterId);
-    if (!character) {
-      return res.status(404).json({ message: 'Character not found' });
-    }
+    if (!character) throw new Error('Персонаж не найден');
     
-    // Создаем новый CharItem
-    const charItem = new CharItem({
+    const charItem = await CharItem.create({
       gameItem: gameItem._id,
       character: character._id,
       quantity: 1,
       isEquipped: false,
       slot: null
     });
-
-    await charItem.save();
     
-    // Добавляем CharItem к инвентарю персонажа
     character.inventory.push(charItem._id);
     await character.save();
     
-    res.json({ message: 'Game item sent to character successfully', character });
+    res.json({ message: 'Игровой предмет успешно отправлен персонажу', character });
   } catch (error) {
-    console.error('Error sending game item:', error);
-    res.status(400).json({ message: 'Error sending game item', error: error.message });
+    handleError(res, error, 'Ошибка отправки игрового предмета');
   }
 };
 

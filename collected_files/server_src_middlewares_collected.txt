@@ -1,0 +1,41 @@
+// Собранный код для папки server_src_middlewares
+
+// Код файла middlewares\adminMiddleware.js:
+// middlewares/adminMiddleware.js
+const adminMiddleware = (req, res, next) => {
+    if (req.user && req.user.role === 'admin') {
+      next();
+    } else {
+      res.status(403).json({ message: 'Access denied. Admin role required.' });
+    }
+  };
+  
+  module.exports = adminMiddleware;
+
+// Код файла middlewares\authMiddleware.js:
+const jwt = require('jsonwebtoken');
+const User = require('../models/User');
+
+const authMiddleware = async (req, res, next) => {
+  try {
+    const token = req.header('Authorization').replace('Bearer ', '');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    const user = await User.findOne({ _id: decoded.id });
+
+    if (!user) {
+      throw new Error();
+    }
+
+    req.token = token;
+    req.user = user;
+    next();
+  } catch (error) {
+    res.status(401).send({ error: 'Please authenticate.' });
+  }
+};
+
+module.exports = authMiddleware;
+
+// Код файла middlewares\errorMiddleware.js:
+ 
+

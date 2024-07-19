@@ -40,7 +40,7 @@ const AdminGameItemForm = () => {
     stats: {
       strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
       damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,
-      healthRegen: 0, health: 0, counterAttack: 0
+      healthRegenRate: 0, health: 0, counterAttack: 0
     }
   });
   const [error, setError] = useState('');
@@ -160,7 +160,7 @@ const AdminGameItemForm = () => {
             <InputField label="Уворот" name="dodge" value={gameItem.stats.dodge} onChange={handleStatsChange} type="number" />
             <InputField label="Контрудар" name="counterAttack" value={gameItem.stats.counterAttack} onChange={handleStatsChange} type="number" />
             <InputField label="HP" name="health" value={gameItem.stats.health} onChange={handleStatsChange} type="number" />
-            <InputField label="Реген HP" name="healthRegen" value={gameItem.stats.healthRegen} onChange={handleStatsChange} type="number" />
+            <InputField label="Реген HP" name="healthRegenRate" value={gameItem.stats.healthRegenRate} onChange={handleStatsChange} type="number" />
           </div>
           <div className="col-span-3 mt-4">
             <button type="submit" className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded">

@@ -1,13 +1,7 @@
 const express = require('express');
-const { 
-  createCharItem, 
-  getCharItemById, 
-  updateCharItem, 
-  deleteCharItem 
-} = require('../controllers/charItemController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
 const router = express.Router();
+const { createCharItem, getCharItemById, updateCharItem, deleteCharItem } = require('../controllers/charItemController');
+const authMiddleware = require('../middlewares/authMiddleware');
 
 router.post('/', authMiddleware, createCharItem);
 router.get('/:id', authMiddleware, getCharItemById);

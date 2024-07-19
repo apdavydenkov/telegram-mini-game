@@ -9,7 +9,7 @@ const useAuth = () => {
 
   const loadUser = useCallback(async () => {
     try {
-      const { data } = await auth.getMe();
+      const { data } = await auth.getCurrentUser();
       setUser(data);
     } catch (error) {
       console.error('Error loading user:', error);

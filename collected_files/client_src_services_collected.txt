@@ -1,3 +1,6 @@
+// Собранный код для папки client_src_services
+
+// Код файла services\api.js:
 import axios from 'axios';
 import { APP_SERVER_URL } from '../config/config';
 

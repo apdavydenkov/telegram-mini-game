@@ -27,16 +27,12 @@ const charItemSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Метод для экипировки предмета
-charItemSchema.methods.equip = function() {
-  this.isEquipped = true;
+charItemSchema.methods.setEquippedStatus = function(isEquipped) {
+  this.isEquipped = isEquipped;
+  if (!isEquipped) {
+    this.slot = null;
+  }
   return this.save();
 };
 
-// Метод для снятия предмета
-charItemSchema.methods.unequip = function() {
-  this.isEquipped = false;
-  this.slot = null;
-  return this.save();
-};
-
-module.exports = mongoose.model('CharItem', charItemSchema);
+module.exports = mongoose.model('CharItem', charItemSchema);  

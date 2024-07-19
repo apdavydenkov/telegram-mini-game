@@ -1,0 +1,72 @@
+// Собранный код для папки server_src_routes
+
+// Код файла routes\authRoutes.js:
+const express = require('express');
+const router = express.Router();
+const { register, login, getCurrentUser, makeAdmin } = require('../controllers/authController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.post('/register', register);
+router.post('/login', login);
+router.post('/make-admin', authMiddleware, makeAdmin);
+router.get('/current-user', authMiddleware, getCurrentUser);
+
+
+module.exports = router;
+
+// Код файла routes\characterRoutes.js:
+const express = require('express');
+const router = express.Router();
+const { createCharacter, getCharacter, updateCharacter, equipCharItem, addItemToInventory, getHealthData, damageCharacter } = require('../controllers/characterController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.post('/', authMiddleware, createCharacter);
+router.get('/', authMiddleware, getCharacter);
+router.put('/', authMiddleware, updateCharacter);
+router.post('/equip', authMiddleware, equipCharItem);
+router.post('/addItem', authMiddleware, addItemToInventory);
+router.get('/health', authMiddleware, getHealthData);
+router.post('/damage', authMiddleware, damageCharacter);
+
+module.exports = router;
+
+// Код файла routes\charItemRoutes.js:
+const express = require('express');
+const router = express.Router();
+const { createCharItem, getCharItemById, updateCharItem, deleteCharItem } = require('../controllers/charItemController');
+const authMiddleware = require('../middlewares/authMiddleware');
+
+router.post('/', authMiddleware, createCharItem);
+router.get('/:id', authMiddleware, getCharItemById);
+router.put('/:id', authMiddleware, updateCharItem);
+router.delete('/:id', authMiddleware, deleteCharItem);
+
+module.exports = router;
+
+// Код файла routes\combatRoutes.js:
+ 
+
+
+// Код файла routes\gameItemRoutes.js:
+const express = require('express');
+const router = express.Router();
+const { createGameItem, getAllGameItems, getGameItemById, updateGameItem, deleteGameItem, sendGameItem } = require('../controllers/gameItemController');
+const authMiddleware = require('../middlewares/authMiddleware');
+const adminMiddleware = require('../middlewares/adminMiddleware');
+
+router.get('/', authMiddleware, getAllGameItems);
+router.get('/:id', authMiddleware, getGameItemById);
+router.post('/', authMiddleware, adminMiddleware, createGameItem);
+router.put('/:id', authMiddleware, adminMiddleware, updateGameItem);
+router.delete('/:id', authMiddleware, adminMiddleware, deleteGameItem);
+router.post('/send/:gameItemId/:characterId', authMiddleware, adminMiddleware, sendGameItem);
+
+module.exports = router;
+
+// Код файла routes\inventoryRoutes.js:
+ 
+
+
+// Код файла routes\skillRoutes.js:
+ 
+
