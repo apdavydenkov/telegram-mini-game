@@ -1,21 +1,82 @@
-import React from 'react';
+// ВАЖНО: Порядок и структура div элементов в этом файле критически важны для вёрстки.
+// НЕ ИЗМЕНЯЙТЕ порядок или структуру div элементов без крайней необходимости.
+// Любые изменения могут нарушить макет персонажа.
 
-const Character = ({ character }) => {
+import React, { useState, useCallback } from 'react';
+import CharItemInfo from '../Inventory/CharItemInfo';
+
+const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
+  const [pressTimer, setPressTimer] = useState(null);
+
+  const handleMouseDown = useCallback(() => {
+    setPressTimer(setTimeout(() => {
+      if (item) {
+        onShowInfo(item);
+      }
+    }, 1000));
+  }, [item, onShowInfo]);
+
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
+  };
+
+  const handleClick = () => {
+    if (item) {
+      onUnequip(item._id);
+    }
+  };
+
+  return (
+    <div 
+      className="w-full h-full flex items-center justify-center cursor-pointer"
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
+    >
+      {item ? (
+        <div className="w-full h-full relative">
+          <img 
+            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`} 
+            alt={item.gameItem.name} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+            <div className="text-white text-xs font-bold bg-gray-800 bg-opacity-75 px-1 py-0.5 rounded">
+              {item.gameItem.name}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <img 
+          src={`https://placehold.co/60x60?text=${slot}`} 
+          alt={slot} 
+          className="w-full h-full object-cover"
+        />
+      )}
+    </div>
+  );
+};
+
+const Character = ({ character, onUnequipItem }) => {
+  const [selectedItem, setSelectedItem] = useState(null);
+
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const renderEquippedCharItem = (slot) => {
-    const equippedCharItem = character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
-    return equippedCharItem ? (
-      <img src={equippedCharItem.gameItem.image || `https://placehold.co/60x60?text=${equippedCharItem.gameItem.name}`} alt={equippedCharItem.gameItem.name} className="w-full h-full object-cover" />
-    ) : (
-      <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
-    );
-  };
-
   const currentHealth = Math.round(character.healthData.currentHealth);
   const maxHealth = character.healthData.maxHealth;
+
+  const handleShowInfo = (item) => {
+    setSelectedItem(item);
+  };
+
+  const getEquippedItem = (slot) => {
+    return character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
@@ -30,7 +91,6 @@ const Character = ({ character }) => {
           </span>
         </div>
         
-        {/* EXP Bar */}
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-yellow-400 absolute left-0 top-0"
@@ -41,7 +101,6 @@ const Character = ({ character }) => {
           </div>
         </div>
         
-        {/* HP Bar */}
         <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-red-500 absolute left-0 top-0"
@@ -52,49 +111,45 @@ const Character = ({ character }) => {
           </div>
         </div>
 
-        {/* Character silhouette */}
         <div className="col-span-6 row-span-8 col-start-4 row-start-4 bg-gray-300 rounded-md flex items-center justify-center">
           <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
         </div>
 
-        {/* Equipment slots */}
         <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('banner')}
+          <EquipmentSlot slot="banner" item={getEquippedItem('banner')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('helmet')}
+          <EquipmentSlot slot="helmet" item={getEquippedItem('helmet')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('weapon')}
+          <EquipmentSlot slot="weapon" item={getEquippedItem('weapon')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('shield')}
+          <EquipmentSlot slot="shield" item={getEquippedItem('shield')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('armor')}
+          <EquipmentSlot slot="armor" item={getEquippedItem('armor')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('cloak')}
+          <EquipmentSlot slot="cloak" item={getEquippedItem('cloak')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('belt')}
+          <EquipmentSlot slot="belt" item={getEquippedItem('belt')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('boots')}
+          <EquipmentSlot slot="boots" item={getEquippedItem('boots')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
 
-        {/* Useful item slots */}
         <div className="col-span-2 row-span-2 col-start-4 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful1')}
+          <EquipmentSlot slot="useful1" item={getEquippedItem('useful1')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-2 row-span-2 col-start-6 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful2')}
+          <EquipmentSlot slot="useful2" item={getEquippedItem('useful2')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-2 row-span-2 col-start-8 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful3')}
+          <EquipmentSlot slot="useful3" item={getEquippedItem('useful3')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
 
-        {/* Skills */}
         <div className="col-span-2 row-span-2 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
           <img src="https://placehold.co/40x40?text=Skill+1" alt="Skill 1" className="w-full h-full object-cover" />
         </div>
@@ -114,11 +169,19 @@ const Character = ({ character }) => {
           <img src="https://placehold.co/40x40?text=Skill+6" alt="Skill 6" className="w-full h-full object-cover" />
         </div>
 
-        {/* Gold */}
         <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
         </div>
       </div>
+      {selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <CharItemInfo 
+            charItem={selectedItem} 
+            onClose={() => setSelectedItem(null)} 
+            character={character}
+          />
+        </div>
+      )}
     </div>
   );
 };

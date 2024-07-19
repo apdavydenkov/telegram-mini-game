@@ -35,15 +35,60 @@ const SelectField = ({ label, name, value, onChange, options }) => (
   </div>
 );
 
+const CheckboxField = ({ label, name, value, onChange, options }) => (
+  <div className="flex flex-col mb-2">
+    <label className="font-bold mb-1">{label}:</label>
+    <div className="flex flex-wrap">
+      {options.map(option => (
+        <div key={option} className="mr-4">
+          <input
+            type="checkbox"
+            id={`${name}-${option}`}
+            name={name}
+            value={option}
+            checked={value.includes(option)}
+            onChange={onChange}
+            className="mr-1"
+          />
+          <label htmlFor={`${name}-${option}`}>{option}</label>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [gameItem, setGameItem] = useState({
-    name: '', type: 'weapon', rarity: 'common', minLevel: 1, image: '',
+    name: '',
+    type: 'weapon',
+    rarity: 'common',
+    minLevel: 1,
+    image: '',
+    requiredClass: [],
+    requiredStats: {
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      endurance: 0,
+      charisma: 0
+    },
+    description: '',
     stats: {
-      strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
-      damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,
-      healthRegenRate: 0, health: 0, counterAttack: 0
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      endurance: 0,
+      charisma: 0,
+      damage: 0,
+      armor: 0,
+      criticalChance: 0,
+      criticalDamage: 0,
+      dodge: 0,
+      healthRegenRate: 0,
+      health: 0,
+      counterAttack: 0
     }
   });
   const [error, setError] = useState('');
@@ -91,6 +136,24 @@ const AdminGameItemForm = () => {
     }));
   };
 
+  const handleRequiredStatsChange = (e) => {
+    const { name, value } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      requiredStats: { ...prev.requiredStats, [name]: parseFloat(value) }
+    }));
+  };
+
+  const handleRequiredClassChange = (e) => {
+    const { value, checked } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      requiredClass: checked
+        ? [...prev.requiredClass, value]
+        : prev.requiredClass.filter(c => c !== value)
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -114,7 +177,7 @@ const AdminGameItemForm = () => {
     } catch (error) {
       console.error('Ошибка сохранения игрового предмета:', error.response?.data || error.message);
       setError('Ошибка сохранения игрового предмета. Пожалуйста, проверьте данные и попробуйте еще раз.');
-      
+
       if (error.response && error.response.status === 401) {
         console.log('Токен недействителен. Перенаправление на страницу входа.');
         localStorage.removeItem('token');
@@ -145,17 +208,40 @@ const AdminGameItemForm = () => {
               onChange={handleChange}
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
-            <InputField label="Мин. уровень" name="minLevel" value={gameItem.minLevel} onChange={handleChange} type="number" />
             <InputField label="Изображение" name="image" value={gameItem.image} onChange={handleChange} />
+
+            <textarea
+              name="description"
+              value={gameItem.description}
+              onChange={handleChange}
+              placeholder="Описание предмета"
+              className="w-full px-2 py-1 border rounded"
+              rows="4"
+            />
           </div>
           <div>
+            <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
+            <InputField label="Мин. уровень" name="minLevel" value={gameItem.minLevel} onChange={handleChange} type="number" />
+            <InputField label="Сила" name="strength" value={gameItem.requiredStats.strength} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Ловкость" name="dexterity" value={gameItem.requiredStats.dexterity} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Интеллект" name="intelligence" value={gameItem.requiredStats.intelligence} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Выносливость" name="endurance" value={gameItem.requiredStats.endurance} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Харизма" name="charisma" value={gameItem.requiredStats.charisma} onChange={handleRequiredStatsChange} type="number" />
+            <CheckboxField
+              label="Требуемый класс"
+              name="requiredClass"
+              value={gameItem.requiredClass}
+              onChange={handleRequiredClassChange}
+              options={['Warrior', 'Mage', 'Archer']}
+            />
+          </div>
+          <div>
+            <h3 className="font-bold mb-2">Бонусы предмета:</h3>
             <InputField label="Сила" name="strength" value={gameItem.stats.strength} onChange={handleStatsChange} type="number" />
             <InputField label="Ловкость" name="dexterity" value={gameItem.stats.dexterity} onChange={handleStatsChange} type="number" />
             <InputField label="Интеллект" name="intelligence" value={gameItem.stats.intelligence} onChange={handleStatsChange} type="number" />
             <InputField label="Выносливость" name="endurance" value={gameItem.stats.endurance} onChange={handleStatsChange} type="number" />
             <InputField label="Харизма" name="charisma" value={gameItem.stats.charisma} onChange={handleStatsChange} type="number" />
-          </div>
-          <div>
             <InputField label="Урон" name="damage" value={gameItem.stats.damage} onChange={handleStatsChange} type="number" />
             <InputField label="Броня" name="armor" value={gameItem.stats.armor} onChange={handleStatsChange} type="number" />
             <InputField label="Шанс крита" name="criticalChance" value={gameItem.stats.criticalChance} onChange={handleStatsChange} type="number" />
@@ -508,24 +594,85 @@ export default Register;
 
 
 // Код файла components\Character\Character.js:
-import React from 'react';
+// ВАЖНО: Порядок и структура div элементов в этом файле критически важны для вёрстки.
+// НЕ ИЗМЕНЯЙТЕ порядок или структуру div элементов без крайней необходимости.
+// Любые изменения могут нарушить макет персонажа.
 
-const Character = ({ character }) => {
+import React, { useState, useCallback } from 'react';
+import CharItemInfo from '../Inventory/CharItemInfo';
+
+const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
+  const [pressTimer, setPressTimer] = useState(null);
+
+  const handleMouseDown = useCallback(() => {
+    setPressTimer(setTimeout(() => {
+      if (item) {
+        onShowInfo(item);
+      }
+    }, 1000));
+  }, [item, onShowInfo]);
+
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
+  };
+
+  const handleClick = () => {
+    if (item) {
+      onUnequip(item._id);
+    }
+  };
+
+  return (
+    <div 
+      className="w-full h-full flex items-center justify-center cursor-pointer"
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
+    >
+      {item ? (
+        <div className="w-full h-full relative">
+          <img 
+            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`} 
+            alt={item.gameItem.name} 
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+            <div className="text-white text-xs font-bold bg-gray-800 bg-opacity-75 px-1 py-0.5 rounded">
+              {item.gameItem.name}
+            </div>
+          </div>
+        </div>
+      ) : (
+        <img 
+          src={`https://placehold.co/60x60?text=${slot}`} 
+          alt={slot} 
+          className="w-full h-full object-cover"
+        />
+      )}
+    </div>
+  );
+};
+
+const Character = ({ character, onUnequipItem }) => {
+  const [selectedItem, setSelectedItem] = useState(null);
+
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const renderEquippedCharItem = (slot) => {
-    const equippedCharItem = character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
-    return equippedCharItem ? (
-      <img src={equippedCharItem.gameItem.image || `https://placehold.co/60x60?text=${equippedCharItem.gameItem.name}`} alt={equippedCharItem.gameItem.name} className="w-full h-full object-cover" />
-    ) : (
-      <img src={`https://placehold.co/60x60?text=${slot}`} alt={slot} className="w-full h-full object-cover" />
-    );
-  };
-
   const currentHealth = Math.round(character.healthData.currentHealth);
   const maxHealth = character.healthData.maxHealth;
+
+  const handleShowInfo = (item) => {
+    setSelectedItem(item);
+  };
+
+  const getEquippedItem = (slot) => {
+    return character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
+  };
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
@@ -540,7 +687,6 @@ const Character = ({ character }) => {
           </span>
         </div>
         
-        {/* EXP Bar */}
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-yellow-400 absolute left-0 top-0"
@@ -551,7 +697,6 @@ const Character = ({ character }) => {
           </div>
         </div>
         
-        {/* HP Bar */}
         <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-red-500 absolute left-0 top-0"
@@ -562,49 +707,45 @@ const Character = ({ character }) => {
           </div>
         </div>
 
-        {/* Character silhouette */}
         <div className="col-span-6 row-span-8 col-start-4 row-start-4 bg-gray-300 rounded-md flex items-center justify-center">
           <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
         </div>
 
-        {/* Equipment slots */}
         <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('banner')}
+          <EquipmentSlot slot="banner" item={getEquippedItem('banner')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('helmet')}
+          <EquipmentSlot slot="helmet" item={getEquippedItem('helmet')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('weapon')}
+          <EquipmentSlot slot="weapon" item={getEquippedItem('weapon')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('shield')}
+          <EquipmentSlot slot="shield" item={getEquippedItem('shield')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('armor')}
+          <EquipmentSlot slot="armor" item={getEquippedItem('armor')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('cloak')}
+          <EquipmentSlot slot="cloak" item={getEquippedItem('cloak')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('belt')}
+          <EquipmentSlot slot="belt" item={getEquippedItem('belt')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('boots')}
+          <EquipmentSlot slot="boots" item={getEquippedItem('boots')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
 
-        {/* Useful item slots */}
         <div className="col-span-2 row-span-2 col-start-4 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful1')}
+          <EquipmentSlot slot="useful1" item={getEquippedItem('useful1')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-2 row-span-2 col-start-6 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful2')}
+          <EquipmentSlot slot="useful2" item={getEquippedItem('useful2')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
         <div className="col-span-2 row-span-2 col-start-8 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          {renderEquippedCharItem('useful3')}
+          <EquipmentSlot slot="useful3" item={getEquippedItem('useful3')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
         </div>
 
-        {/* Skills */}
         <div className="col-span-2 row-span-2 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
           <img src="https://placehold.co/40x40?text=Skill+1" alt="Skill 1" className="w-full h-full object-cover" />
         </div>
@@ -624,11 +765,19 @@ const Character = ({ character }) => {
           <img src="https://placehold.co/40x40?text=Skill+6" alt="Skill 6" className="w-full h-full object-cover" />
         </div>
 
-        {/* Gold */}
         <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
         </div>
       </div>
+      {selectedItem && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <CharItemInfo 
+            charItem={selectedItem} 
+            onClose={() => setSelectedItem(null)} 
+            character={character}
+          />
+        </div>
+      )}
     </div>
   );
 };
@@ -877,16 +1026,17 @@ const TabContent = ({ children }) => (
 
 const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('characterstats');
+  const [equipError, setEquipError] = useState('');
   const navigate = useNavigate();
   const { user, loading: authLoading, logout } = useAuth();
-  const { 
-    character, 
-    loading: characterLoading, 
-    error, 
+  const {
+    character,
+    loading: characterLoading,
+    error,
     isUpdating,
-    updateCharacter, 
-    equipItem, 
-    fetchCharacter 
+    updateCharacter,
+    equipItem,
+    fetchCharacter
   } = useCharacter();
 
   if (authLoading || characterLoading) {
@@ -902,8 +1052,28 @@ const Dashboard = () => {
     await updateCharacter(updatedCharacter);
   };
 
+  const canEquipItem = (item) => {
+    if (!item || !item.gameItem) return false;
+    if (character.level < item.gameItem.minLevel) return false;
+    if (item.gameItem.requiredClass.length && !item.gameItem.requiredClass.includes(character.class)) return false;
+    for (const [stat, value] of Object.entries(item.gameItem.requiredStats)) {
+      if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
+    }
+    return true;
+  };
+
   const handleEquipItem = async (itemId) => {
-    await equipItem(itemId);
+    const item = character.inventory.find(i => i._id === itemId);
+    if (item.isEquipped || canEquipItem(item)) {
+      const result = await equipItem(itemId);
+      setEquipError(result.success ? '' : result.message);
+    } else {
+      setEquipError('Не выполнены минимальные требования для надевания этого предмета.');
+    }
+  };
+
+  const handleUnequipItem = async (itemId) => {
+    await equipItem(itemId); // Используем ту же функцию, что и для экипировки
   };
 
   const handleCharacterCreated = () => {
@@ -915,81 +1085,157 @@ const Dashboard = () => {
     navigate('/login');
   };
 
+  const renderContent = () => {
+    if (!character) {
+      return (
+        <div className="bg-white p-4 rounded-lg shadow-lg">
+          <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
+          <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+        </div>
+      );
+    }
+
+    return (
+      <>
+        <Character
+          character={character}
+          onUnequipItem={handleUnequipItem}
+        />
+        <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
+          <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
+          <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
+          <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
+        </div>
+        <TabContent>
+          {activeTab === 'characterstats' && (
+            <CharacterStats
+              character={character}
+              onCharacterUpdate={handleCharacterUpdate}
+              isUpdating={isUpdating}
+              error={error}
+            />
+          )}
+          {activeTab === 'inventory' && (
+            <Inventory
+              inventory={character.inventory || []}
+              onClickInventoryItem={handleEquipItem}
+              equipError={equipError}
+              canEquipItem={canEquipItem}
+              character={character}
+            />
+          )}
+          {activeTab === 'skills' && <Skills skills={character.skills || []} />}
+        </TabContent>
+      </>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto bg-white p-4 rounded-lg shadow-lg">
       <div className="flex justify-between items-center mb-4">
         <h1 className="text-2xl font-bold">Добро пожаловать, {user.username}!</h1>
-        <button 
-          onClick={handleLogout} 
+        <button
+          onClick={handleLogout}
           className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
         >
           Выйти
         </button>
       </div>
-      
-      {error && <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-        <strong className="font-bold">Ошибка!</strong>
-        <span className="block sm:inline"> {error}</span>
-      </div>}
-      
-      {character ? (
-        <>
-          <Character character={character} />
 
-          <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
-            <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
-            <Tab label="Инвентарь" active={activeTab === 'inventory'} onClick={() => setActiveTab('inventory')} />
-            <Tab label="Навыки" active={activeTab === 'skills'} onClick={() => setActiveTab('skills')} />
-          </div>
-          
-          <TabContent>
-            {activeTab === 'characterstats' && (
-              <CharacterStats 
-                character={character} 
-                onCharacterUpdate={handleCharacterUpdate}
-                isUpdating={isUpdating}
-                error={error}
-              />
-            )}
-            {activeTab === 'inventory' && (
-              <Inventory 
-                inventory={character.inventory || []} 
-                onClickInventoryItem={handleEquipItem}
-              />
-            )}
-            {activeTab === 'skills' && <Skills skills={character.skills || []} />}
-          </TabContent>
-        </>
-      ) : (
-        <div className="bg-white p-4 rounded-lg shadow-lg">
-          <h2 className="text-2xl font-bold mb-4">Создание персонажа</h2>
-          <CreateCharacter onCharacterCreated={handleCharacterCreated} />
+      {error && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <strong className="font-bold">Ошибка!</strong>
+          <span className="block sm:inline"> {error}</span>
         </div>
       )}
+
+      {renderContent()}
     </div>
   );
 };
 
 export default Dashboard;
 
+// Код файла components\Inventory\CharItemInfo.js:
+import React from 'react';
+
+const CharItemInfo = ({ charItem, onClose, character }) => {
+  if (!charItem || !charItem.gameItem) return null;
+
+  const { gameItem } = charItem;
+
+  const isStatInsufficient = (stat, requiredValue) => {
+    const characterStat = character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`];
+    return characterStat < requiredValue;
+  };
+
+  return (
+    <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
+      <div className="relative p-6 bg-gradient-to-r from-blue-500 to-purple-600">
+        <h2 className="text-2xl font-bold text-white mb-2">{gameItem.name}</h2>
+        <p className="text-blue-100">{gameItem.type} - {gameItem.rarity}</p>
+        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="p-6">
+        <div className="flex mb-4">
+          <img src={gameItem.image || "https://placehold.co/100x100?text=No+Image"} alt={gameItem.name} className="w-24 h-24 object-cover mr-4 rounded-lg shadow" />
+          <div>
+            <p className="mb-1"><span className="font-semibold">Мин. уровень:</span> 
+              <span className={character.level < gameItem.minLevel ? "text-red-500 font-bold" : ""}> {gameItem.minLevel}</span>
+            </p>
+            <p className="mb-1"><span className="font-semibold">Класс:</span> 
+              <span className={!gameItem.requiredClass.includes(character.class) ? "text-red-500 font-bold" : ""}> {gameItem.requiredClass.join(', ')}</span>
+            </p>
+          </div>
+        </div>
+        {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
+          <div className="mb-4">
+            <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(gameItem.requiredStats).map(([stat, value]) => (
+                value > 0 && (
+                  <p key={stat} className={isStatInsufficient(stat, value) ? "text-red-500 font-bold" : ""}>
+                    <strong>{stat}:</strong> {value}
+                  </p>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mb-4">
+          <h3 className="font-bold mb-2">Бонусы:</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(gameItem.stats).map(([stat, value]) => (
+              value !== 0 && <p key={stat}><strong>{stat}:</strong> {value > 0 ? '+' : ''}{value}</p>
+            ))}
+          </div>
+        </div>
+        {gameItem.description && (
+          <p className="text-sm italic text-gray-600">{gameItem.description}</p>
+        )}
+        {charItem.isEquipped && (
+          <p className="mt-4 text-green-600 font-bold">Экипировано</p>
+        )}
+      </div>
+    </div>
+  );
+};
+
+export default CharItemInfo;
+
 // Код файла components\Inventory\Inventory.js:
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
+import CharItemInfo from './CharItemInfo';
 
-const CategoryTab = ({ id, name, active, onClick }) => (
-  <button
-    className={`px-4 py-2 font-bold transition-colors duration-200 
-      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
-      first:rounded-tl-lg last:rounded-tr-lg`}
-    onClick={() => onClick(id)}
-  >
-    {name}
-  </button>
-);
-
-const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
+const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
+  const [pressTimer, setPressTimer] = useState(null);
 
   useEffect(() => {
     if (inventoryItem) {
@@ -1013,12 +1259,44 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
     }
   };
 
+  const handleMouseDown = useCallback(() => {
+    setPressTimer(setTimeout(() => {
+      if (itemDetails) {
+        onShowInfo(itemDetails);
+      }
+    }, 1000));
+  }, [itemDetails, onShowInfo]);
+
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
+  };
+
+  const handleClick = () => {
+    if (itemDetails) {
+      if (canEquipItem(itemDetails)) {
+        onClickInventoryItem(inventoryItem._id);
+      } else {
+        onShowInfo(itemDetails);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pressTimer) clearTimeout(pressTimer);
+    };
+  }, [pressTimer]);
+
   return (
     <div
-      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
-        }`}
+      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'}`}
       style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id)}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
     >
       {itemDetails && (
         <>
@@ -1038,9 +1316,10 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   );
 };
 
-const Inventory = ({ inventory, onClickInventoryItem }) => {
-  const [activeCategory, setActiveCategory] = useState('all');
+const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, character }) => {
   const [filteredInventory, setFilteredInventory] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const categories = [
     { id: 'all', name: 'Все' },
@@ -1071,25 +1350,38 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     setActiveCategory(categoryId);
   };
 
+  const handleShowInfo = (item) => {
+    setSelectedItem(item);
+  };
+
   return (
     <div>
       <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
-          <CategoryTab
+          <button
             key={category.id}
-            id={category.id}
-            name={category.name}
-            active={activeCategory === category.id}
-            onClick={handleCategoryChange}
-          />
+            className={`px-4 py-2 font-bold transition-colors duration-200 
+              ${activeCategory === category.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+              first:rounded-tl-lg last:rounded-tr-lg`}
+            onClick={() => handleCategoryChange(category.id)}
+          >
+            {category.name}
+          </button>
         ))}
       </div>
+      {equipError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span className="block sm:inline">{equipError}</span>
+        </div>
+      )}
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot
             key={`${item._id}-${index}`}
             inventoryItem={item}
             onClickInventoryItem={onClickInventoryItem}
+            onShowInfo={handleShowInfo}
+            canEquipItem={canEquipItem}
           />
         ))}
         {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
@@ -1099,6 +1391,15 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
+      {selectedItem && (
+        <div className="fixed p-4 inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <CharItemInfo 
+            charItem={selectedItem} 
+            onClose={() => setSelectedItem(null)} 
+            character={character}
+          />
+        </div>
+      )}
     </div>
   );
 };

@@ -192,9 +192,11 @@ const useCharacter = () => {
           healthRegenRate: maxHealth / data.fullRegenTime
         }
       });
+      return { success: true };
     } catch (err) {
       console.error('Error equipping item:', err);
       setError('Failed to equip item');
+      return { success: false, message: 'Failed to equip item' };
     }
   }, [calculateMaxHealth]);
 

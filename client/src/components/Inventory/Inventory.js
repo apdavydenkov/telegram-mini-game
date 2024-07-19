@@ -1,20 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
+import CharItemInfo from './CharItemInfo';
 
-const CategoryTab = ({ id, name, active, onClick }) => (
-  <button
-    className={`px-4 py-2 font-bold transition-colors duration-200 
-      ${active ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
-      first:rounded-tl-lg last:rounded-tr-lg`}
-    onClick={() => onClick(id)}
-  >
-    {name}
-  </button>
-);
-
-const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
+const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
   const [itemDetails, setItemDetails] = useState(null);
+  const [pressTimer, setPressTimer] = useState(null);
 
   useEffect(() => {
     if (inventoryItem) {
@@ -38,12 +29,44 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
     }
   };
 
+  const handleMouseDown = useCallback(() => {
+    setPressTimer(setTimeout(() => {
+      if (itemDetails) {
+        onShowInfo(itemDetails);
+      }
+    }, 1000));
+  }, [itemDetails, onShowInfo]);
+
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
+  };
+
+  const handleClick = () => {
+    if (itemDetails) {
+      if (canEquipItem(itemDetails)) {
+        onClickInventoryItem(inventoryItem._id);
+      } else {
+        onShowInfo(itemDetails);
+      }
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pressTimer) clearTimeout(pressTimer);
+    };
+  }, [pressTimer]);
+
   return (
     <div
-      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'
-        }`}
+      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'}`}
       style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
-      onClick={() => inventoryItem && onClickInventoryItem(inventoryItem._id)}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
     >
       {itemDetails && (
         <>
@@ -63,9 +86,10 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem }) => {
   );
 };
 
-const Inventory = ({ inventory, onClickInventoryItem }) => {
-  const [activeCategory, setActiveCategory] = useState('all');
+const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, character }) => {
   const [filteredInventory, setFilteredInventory] = useState([]);
+  const [activeCategory, setActiveCategory] = useState('all');
+  const [selectedItem, setSelectedItem] = useState(null);
 
   const categories = [
     { id: 'all', name: 'Все' },
@@ -96,25 +120,38 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
     setActiveCategory(categoryId);
   };
 
+  const handleShowInfo = (item) => {
+    setSelectedItem(item);
+  };
+
   return (
     <div>
       <div className="flex mt-4 overflow-auto">
         {categories.map(category => (
-          <CategoryTab
+          <button
             key={category.id}
-            id={category.id}
-            name={category.name}
-            active={activeCategory === category.id}
-            onClick={handleCategoryChange}
-          />
+            className={`px-4 py-2 font-bold transition-colors duration-200 
+              ${activeCategory === category.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
+              first:rounded-tl-lg last:rounded-tr-lg`}
+            onClick={() => handleCategoryChange(category.id)}
+          >
+            {category.name}
+          </button>
         ))}
       </div>
+      {equipError && (
+        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+          <span className="block sm:inline">{equipError}</span>
+        </div>
+      )}
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot
             key={`${item._id}-${index}`}
             inventoryItem={item}
             onClickInventoryItem={onClickInventoryItem}
+            onShowInfo={handleShowInfo}
+            canEquipItem={canEquipItem}
           />
         ))}
         {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
@@ -124,6 +161,15 @@ const Inventory = ({ inventory, onClickInventoryItem }) => {
           />
         ))}
       </div>
+      {selectedItem && (
+        <div className="fixed p-4 inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <CharItemInfo 
+            charItem={selectedItem} 
+            onClose={() => setSelectedItem(null)} 
+            character={character}
+          />
+        </div>
+      )}
     </div>
   );
 };

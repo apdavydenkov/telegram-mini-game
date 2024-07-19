@@ -32,15 +32,60 @@ const SelectField = ({ label, name, value, onChange, options }) => (
   </div>
 );
 
+const CheckboxField = ({ label, name, value, onChange, options }) => (
+  <div className="flex flex-col mb-2">
+    <label className="font-bold mb-1">{label}:</label>
+    <div className="flex flex-wrap">
+      {options.map(option => (
+        <div key={option} className="mr-4">
+          <input
+            type="checkbox"
+            id={`${name}-${option}`}
+            name={name}
+            value={option}
+            checked={value.includes(option)}
+            onChange={onChange}
+            className="mr-1"
+          />
+          <label htmlFor={`${name}-${option}`}>{option}</label>
+        </div>
+      ))}
+    </div>
+  </div>
+);
+
 const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
   const [gameItem, setGameItem] = useState({
-    name: '', type: 'weapon', rarity: 'common', minLevel: 1, image: '',
+    name: '',
+    type: 'weapon',
+    rarity: 'common',
+    minLevel: 1,
+    image: '',
+    requiredClass: [],
+    requiredStats: {
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      endurance: 0,
+      charisma: 0
+    },
+    description: '',
     stats: {
-      strength: 0, dexterity: 0, intelligence: 0, endurance: 0, charisma: 0,
-      damage: 0, armor: 0, criticalChance: 0, criticalDamage: 0, dodge: 0,
-      healthRegenRate: 0, health: 0, counterAttack: 0
+      strength: 0,
+      dexterity: 0,
+      intelligence: 0,
+      endurance: 0,
+      charisma: 0,
+      damage: 0,
+      armor: 0,
+      criticalChance: 0,
+      criticalDamage: 0,
+      dodge: 0,
+      healthRegenRate: 0,
+      health: 0,
+      counterAttack: 0
     }
   });
   const [error, setError] = useState('');
@@ -88,6 +133,24 @@ const AdminGameItemForm = () => {
     }));
   };
 
+  const handleRequiredStatsChange = (e) => {
+    const { name, value } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      requiredStats: { ...prev.requiredStats, [name]: parseFloat(value) }
+    }));
+  };
+
+  const handleRequiredClassChange = (e) => {
+    const { value, checked } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      requiredClass: checked
+        ? [...prev.requiredClass, value]
+        : prev.requiredClass.filter(c => c !== value)
+    }));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -111,7 +174,7 @@ const AdminGameItemForm = () => {
     } catch (error) {
       console.error('Ошибка сохранения игрового предмета:', error.response?.data || error.message);
       setError('Ошибка сохранения игрового предмета. Пожалуйста, проверьте данные и попробуйте еще раз.');
-      
+
       if (error.response && error.response.status === 401) {
         console.log('Токен недействителен. Перенаправление на страницу входа.');
         localStorage.removeItem('token');
@@ -142,17 +205,40 @@ const AdminGameItemForm = () => {
               onChange={handleChange}
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
-            <InputField label="Мин. уровень" name="minLevel" value={gameItem.minLevel} onChange={handleChange} type="number" />
             <InputField label="Изображение" name="image" value={gameItem.image} onChange={handleChange} />
+
+            <textarea
+              name="description"
+              value={gameItem.description}
+              onChange={handleChange}
+              placeholder="Описание предмета"
+              className="w-full px-2 py-1 border rounded"
+              rows="4"
+            />
           </div>
           <div>
+            <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
+            <InputField label="Мин. уровень" name="minLevel" value={gameItem.minLevel} onChange={handleChange} type="number" />
+            <InputField label="Сила" name="strength" value={gameItem.requiredStats.strength} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Ловкость" name="dexterity" value={gameItem.requiredStats.dexterity} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Интеллект" name="intelligence" value={gameItem.requiredStats.intelligence} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Выносливость" name="endurance" value={gameItem.requiredStats.endurance} onChange={handleRequiredStatsChange} type="number" />
+            <InputField label="Харизма" name="charisma" value={gameItem.requiredStats.charisma} onChange={handleRequiredStatsChange} type="number" />
+            <CheckboxField
+              label="Требуемый класс"
+              name="requiredClass"
+              value={gameItem.requiredClass}
+              onChange={handleRequiredClassChange}
+              options={['Warrior', 'Mage', 'Archer']}
+            />
+          </div>
+          <div>
+            <h3 className="font-bold mb-2">Бонусы предмета:</h3>
             <InputField label="Сила" name="strength" value={gameItem.stats.strength} onChange={handleStatsChange} type="number" />
             <InputField label="Ловкость" name="dexterity" value={gameItem.stats.dexterity} onChange={handleStatsChange} type="number" />
             <InputField label="Интеллект" name="intelligence" value={gameItem.stats.intelligence} onChange={handleStatsChange} type="number" />
             <InputField label="Выносливость" name="endurance" value={gameItem.stats.endurance} onChange={handleStatsChange} type="number" />
             <InputField label="Харизма" name="charisma" value={gameItem.stats.charisma} onChange={handleStatsChange} type="number" />
-          </div>
-          <div>
             <InputField label="Урон" name="damage" value={gameItem.stats.damage} onChange={handleStatsChange} type="number" />
             <InputField label="Броня" name="armor" value={gameItem.stats.armor} onChange={handleStatsChange} type="number" />
             <InputField label="Шанс крита" name="criticalChance" value={gameItem.stats.criticalChance} onChange={handleStatsChange} type="number" />

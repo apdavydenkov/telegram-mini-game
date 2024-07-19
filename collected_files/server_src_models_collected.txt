@@ -4,28 +4,13 @@
 const mongoose = require('mongoose');
 
 const characterSchema = new mongoose.Schema({
-  user: {
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'User',
-    required: true
-  },
-  nickname: {
-    type: String,
-    required: true
-  },
-  class: {
-    type: String,
-    enum: ['Warrior', 'Mage', 'Archer'],
-    required: true
-  },
+  user: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
+  nickname: { type: String, required: true },
+  class: { type: String, enum: ['Warrior', 'Mage', 'Archer'], required: true },
   level: { type: Number, default: 1 },
   experience: { type: Number, default: 0 },
   gold: { type: Number, default: 0 },
-  status: {
-    type: String,
-    enum: ['idle', 'in_battle', 'resting'],
-    default: 'idle'
-  },
+  status: { type: String, enum: ['idle', 'in_battle', 'resting'], default: 'idle' },
 
   // Базовые характеристики
   baseStrength: { type: Number, default: 10 },
@@ -35,24 +20,15 @@ const characterSchema = new mongoose.Schema({
   baseCharisma: { type: Number, default: 10 },
 
   // Здоровье
-  health: {
-    type: Number,
-    default: function () {
-      return this.getMaxHealth();
-    }
-  },
-
+  health: { type: Number, default: function () { return this.getMaxHealth(); } },
   lastHealthUpdate: { type: Date, default: Date.now },
-  fullRegenTime: { type: Number, default: 60 }, // значение в секундах
+  fullRegenTime: { type: Number, default: 600 }, // значение в секундах
 
   // Очки характеристик
   availablePoints: { type: Number, default: 5 },
 
   // Инвентарь
-  inventory: [{
-    type: mongoose.Schema.Types.ObjectId,
-    ref: 'CharItem'
-  }],
+  inventory: [{ type: mongoose.Schema.Types.ObjectId, ref: 'CharItem' }],
 
   version: { type: Number, default: 0 }
 }, { timestamps: true });
@@ -72,111 +48,108 @@ characterSchema.virtual('healthRegenRate').get(function () {
   return this.getHealthRegenRate();
 });
 
-// Метод для получения максимального здоровья
-characterSchema.methods.getMaxHealth = function () {
-  const healthPerEndurance = 5;
-  const baseHealth = 100 * this.level;
+characterSchema.methods = {
+  // Метод для получения максимального здоровья
+  getMaxHealth() {
+    const healthPerEndurance = 5;
+    const baseHealth = 100 * this.level;
+    const { enduranceBonus, healthBonus } = this.inventory
+      .filter(charItem => charItem.isEquipped && charItem.gameItem && charItem.gameItem.stats)
+      .reduce((acc, charItem) => ({
+        enduranceBonus: acc.enduranceBonus + (charItem.gameItem.stats.endurance || 0),
+        healthBonus: acc.healthBonus + (charItem.gameItem.stats.health || 0)
+      }), { enduranceBonus: 0, healthBonus: 0 });
 
-  // Расчет бонусов за экипированные предметы
-  const { enduranceBonus, healthBonus } = this.inventory
-    .filter(charItem => charItem.isEquipped && charItem.gameItem && charItem.gameItem.stats)
-    .reduce((acc, charItem) => {
-      acc.enduranceBonus += charItem.gameItem.stats.endurance || 0;
-      acc.healthBonus += charItem.gameItem.stats.health || 0;
+    return Math.round(baseHealth + (this.baseEndurance + enduranceBonus) * healthPerEndurance + healthBonus);
+  },
+
+  // Метод для получения скорости регенерации здоровья
+  getHealthRegenRate() {
+    return this.getMaxHealth() / this.fullRegenTime;
+  },
+
+  // Метод для получения текущего здоровья с учетом регенерации
+  getCurrentHealth() {
+    const now = new Date();
+    const healthRegenDuration = Math.max(0, (now - this.lastHealthUpdate) / 1000);
+    const healthRegenRate = this.getHealthRegenRate();
+    const healthRegenAmount = healthRegenRate * healthRegenDuration;
+    return Math.min(Math.round(this.health + healthRegenAmount), this.getMaxHealth());
+  },
+
+  // Метод для обновления здоровья на текущее
+  updateHealth(newHealth) {
+    this.health = this.getCurrentHealth();
+    this.lastHealthUpdate = new Date();
+  },
+
+  // Метод для получения текущих данных о здоровье
+  getHealthData() {
+    return {
+      currentHealth: this.getCurrentHealth(),
+      maxHealth: this.getMaxHealth(),
+      healthRegenRate: this.getHealthRegenRate(),
+      lastHealthUpdate: this.lastHealthUpdate
+    };
+  },
+
+  // Метод для пересчета всех характеристик
+  getStatsData() {
+    const baseStats = {
+      strength: this.baseStrength,
+      dexterity: this.baseDexterity,
+      intelligence: this.baseIntelligence,
+      endurance: this.baseEndurance,
+      charisma: this.baseCharisma
+    };
+
+    const equippedStats = this.inventory
+      .filter(charItem => charItem.isEquipped && charItem.gameItem && charItem.gameItem.stats)
+      .reduce((acc, charItem) => {
+        Object.keys(charItem.gameItem.stats).forEach(stat => {
+          if (baseStats.hasOwnProperty(stat)) {
+            acc[stat] = (acc[stat] || 0) + charItem.gameItem.stats[stat];
+          }
+        });
+        return acc;
+      }, {});
+
+    const totalStats = Object.keys(baseStats).reduce((acc, stat) => {
+      acc[stat] = baseStats[stat] + (equippedStats[stat] || 0);
       return acc;
-    }, { enduranceBonus: 0, healthBonus: 0 });
+    }, {});
 
-  // Общий и бонус за выносливость
-  const totalEnduranceBonus = (this.baseEndurance + enduranceBonus) * healthPerEndurance;
+    // Формулы расчёта боевых характеристик
+    return {
+      ...totalStats,
+      health: this.getCurrentHealth(),
+      maxHealth: this.getMaxHealth(),
+      healthRegenRate: parseFloat(this.getHealthRegenRate().toFixed(2)),
+      damage: Math.round(totalStats.strength * 1.5 + totalStats.intelligence * 0.5),
+      armor: Math.round(totalStats.endurance * 0.5),
+      criticalChance: parseFloat((totalStats.intelligence * 0.2).toFixed(2)),
+      criticalDamage: Math.round(100 + totalStats.intelligence * 2),
+      dodge: parseFloat((totalStats.dexterity * 0.3).toFixed(2)),
+      counterAttack: parseFloat((totalStats.dexterity * 0.2 + totalStats.charisma * 0.1).toFixed(2)),
+    };
+  },
 
-  // Итоговое максимальное здоровье
-  return Math.round(baseHealth + totalEnduranceBonus + healthBonus);
-};
+  // Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
+  updateHealthAfterChange(oldMaxHealth) {
+    const newMaxHealth = this.getMaxHealth();
+    const currentHealth = this.health; // Используем текущее значение здоровья, а не getCurrentHealth()
 
-// Метод для получения скорости регенерации здоровья
-characterSchema.methods.getHealthRegenRate = function () {
-  const maxHealth = this.getMaxHealth();
-  return maxHealth / this.fullRegenTime;
-};
-
-// Метод для получения текущего здоровья с учетом регенерации
-characterSchema.methods.getCurrentHealth = function () {
-  const now = new Date();
-  const healthRegenDuration = Math.max(0, (now - this.lastHealthUpdate) / 1000);
-  const healthRegenRate = this.getHealthRegenRate();
-  const healthRegenAmount = healthRegenRate * healthRegenDuration;
-  const maxHealth = this.getMaxHealth();
-  const newHealth = Math.min(this.health + healthRegenAmount, maxHealth);
-
-  return Math.round(newHealth);
-};
-
-// Метод для обновления здоровья на текущее
-characterSchema.methods.updateHealth = function (newHealth) {
-  this.health = this.getCurrentHealth();
-  this.lastHealthUpdate = new Date();
-};
-
-// Метод для получения текущих данных о здоровье
-characterSchema.methods.getHealthData = function () {
-  return {
-    currentHealth:this.getCurrentHealth(),
-    maxHealth:this.getMaxHealth(),
-    healthRegenRate:this.getHealthRegenRate(),
-    lastHealthUpdate:this.lastHealthUpdate
-  };
-};
-
-// Метод для пересчета всех характеристик
-characterSchema.methods.getStatsData = function () {
-  const equippedCharItems = this.inventory.filter(charItem => charItem.isEquipped && charItem.gameItem);
-
-  const baseStats = {
-    strength: this.baseStrength,
-    dexterity: this.baseDexterity,
-    intelligence: this.baseIntelligence,
-    endurance: this.baseEndurance,
-    charisma: this.baseCharisma
-  };
-
-  equippedCharItems.forEach(charItem => {
-    if (charItem.gameItem && charItem.gameItem.stats) {
-      Object.keys(charItem.gameItem.stats).forEach(stat => {
-        if (baseStats.hasOwnProperty(stat)) {
-          baseStats[stat] += charItem.gameItem.stats[stat];
-        }
-      });
+    if (newMaxHealth !== oldMaxHealth) {
+      // Сохраняем процентное соотношение текущего здоровья к максимальному
+      const healthPercentage = currentHealth / oldMaxHealth;
+      this.health = Math.round(newMaxHealth * healthPercentage);
     }
-  });
 
-  // Формулы расчёта боевых характеристик
-  return {
-    ...baseStats,
-    health: this.getCurrentHealth(),
-    maxHealth: this.getMaxHealth(),
-    healthRegenRate: parseFloat(this.getHealthRegenRate().toFixed(2)),
-    damage: Math.round(baseStats.strength * 1.5 + baseStats.intelligence * 0.5),
-    armor: Math.round(baseStats.endurance * 0.5),
-    criticalChance: parseFloat((baseStats.intelligence * 0.2).toFixed(2)),
-    criticalDamage: Math.round(100 + baseStats.intelligence * 2),
-    dodge: parseFloat((baseStats.dexterity * 0.3).toFixed(2)),
-    counterAttack: parseFloat((baseStats.dexterity * 0.2 + baseStats.charisma * 0.1).toFixed(2)),
-  };
-};
+    // Убедимся, что здоровье не превышает новый максимум
+    this.health = Math.min(this.health, newMaxHealth);
 
-// Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
-characterSchema.methods.updateHealthAfterChange = function (oldMaxHealth) {
-  const newMaxHealth = this.getMaxHealth();
-  const currentHealth = this.getCurrentHealth();
-
-  if (newMaxHealth !== oldMaxHealth) {
-    const healthRatio = currentHealth / oldMaxHealth;
-    this.health = Math.min(currentHealth, Math.round(newMaxHealth * healthRatio));
-  } else {
-    this.health = currentHealth;
-  }
-
-  this.lastHealthUpdate = new Date();
+    this.lastHealthUpdate = new Date();
+  },
 };
 
 // Пре-сохранение для увеличения версии и обновления здоровья
@@ -248,13 +221,12 @@ module.exports = mongoose.model('CharItem', charItemSchema);
 
 // Код файла models\GameItem.js:
 const mongoose = require('mongoose');
-
 const gameItemSchema = new mongoose.Schema({
   name: { type: String, required: true },
-  type: { 
-    type: String, 
-    enum: ['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful'], 
-    required: true 
+  type: {
+    type: String,
+    enum: ['weapon', 'armor', 'banner', 'helmet', 'shield', 'cloak', 'belt', 'boots', 'useful'],
+    required: true
   },
   rarity: {
     type: String,
@@ -262,7 +234,19 @@ const gameItemSchema = new mongoose.Schema({
     default: 'common'
   },
   minLevel: { type: Number, default: 1 },
+  requiredClass: [{
+    type: String,
+    enum: ['Warrior', 'Mage', 'Archer']
+  }],
+  requiredStats: {
+    strength: { type: Number, default: 0 },
+    dexterity: { type: Number, default: 0 },
+    intelligence: { type: Number, default: 0 },
+    endurance: { type: Number, default: 0 },
+    charisma: { type: Number, default: 0 }
+  },
   image: { type: String, default: '' },
+  description: { type: String, default: '' },
   stats: {
     strength: { type: Number, default: 0 },
     dexterity: { type: Number, default: 0 },
