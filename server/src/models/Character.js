@@ -18,6 +18,7 @@ const characterSchema = new mongoose.Schema({
 
   // Здоровье
   health: { type: Number, default: function () { return this.getMaxHealth(); } },
+  maxHealth: { type: Number, default: function () { return this.getMaxHealth(); } },
   lastHealthUpdate: { type: Date, default: Date.now },
   fullRegenTime: { type: Number, default: 600 }, // значение в секундах
 
@@ -33,11 +34,6 @@ const characterSchema = new mongoose.Schema({
 // Виртуальное поле для проверки завершения распределения очков
 characterSchema.virtual('zeroPoints').get(function () {
   return this.availablePoints === 0;
-});
-
-// Виртуальное поле для максимального здоровья
-characterSchema.virtual('maxHealth').get(function () {
-  return this.getMaxHealth();
 });
 
 // Виртуальное поле для скорости регенерации здоровья
@@ -62,29 +58,19 @@ characterSchema.methods = {
 
   // Метод для получения скорости регенерации здоровья
   getHealthRegenRate() {
-    return this.getMaxHealth() / this.fullRegenTime;
+    return this.maxHealth / this.fullRegenTime;
   },
 
   // Метод для получения текущего здоровья с учетом регенерации
   getCurrentHealth() {
-    const now = new Date();
-    const healthRegenDuration = Math.max(0, (now - this.lastHealthUpdate) / 1000);
-    const healthRegenRate = this.getHealthRegenRate();
-    const healthRegenAmount = healthRegenRate * healthRegenDuration;
-    return Math.min(Math.round(this.health + healthRegenAmount), this.getMaxHealth());
-  },
-
-  // Метод для обновления здоровья на текущее
-  updateHealth(newHealth) {
-    this.health = this.getCurrentHealth();
-    this.lastHealthUpdate = new Date();
+    return this.calculateUpdatedHealth(this.maxHealth);
   },
 
   // Метод для получения текущих данных о здоровье
   getHealthData() {
     return {
       currentHealth: this.getCurrentHealth(),
-      maxHealth: this.getMaxHealth(),
+      maxHealth: this.maxHealth,
       healthRegenRate: this.getHealthRegenRate(),
       lastHealthUpdate: this.lastHealthUpdate
     };
@@ -120,7 +106,7 @@ characterSchema.methods = {
     return {
       ...totalStats,
       health: this.getCurrentHealth(),
-      maxHealth: this.getMaxHealth(),
+      maxHealth: this.maxHealth,
       healthRegenRate: parseFloat(this.getHealthRegenRate().toFixed(2)),
       damage: Math.round(totalStats.strength * 1.5 + totalStats.intelligence * 0.5),
       armor: Math.round(totalStats.endurance * 0.5),
@@ -131,20 +117,37 @@ characterSchema.methods = {
     };
   },
 
-  // Метод для обновления здоровья после экипировки/снятия предмета или изменения характеристик
-  updateHealthAfterChange(oldMaxHealth) {
-    const newMaxHealth = this.getMaxHealth();
-    const currentHealth = this.health; // Используем текущее значение здоровья, а не getCurrentHealth()
+  // Новый метод для расчета обновленного здоровья
+  calculateUpdatedHealth(newMaxHealth) {
+    const now = new Date();
+    const oldMaxHealth = this.maxHealth;
+    const oldHealth = this.health;
 
-    if (newMaxHealth !== oldMaxHealth) {
-      // Сохраняем процентное соотношение текущего здоровья к максимальному
-      const healthPercentage = currentHealth / oldMaxHealth;
-      this.health = Math.round(newMaxHealth * healthPercentage);
+    // Случай (a): текущее здоровье равно старому максимуму
+    if (oldHealth === oldMaxHealth) {
+      return oldHealth;
     }
 
-    // Убедимся, что здоровье не превышает новый максимум
-    this.health = Math.min(this.health, newMaxHealth);
+    // Случай (b): текущее здоровье не равно старому максимуму
+    const timeSinceLastUpdate = (now - this.lastHealthUpdate) / 1000; // в секундах
+    const healthRegenRate = this.getHealthRegenRate();
+    const regenAmount = healthRegenRate * timeSinceLastUpdate;
 
+    // Рассчитываем новое здоровье и ограничиваем его старым и новым максимумами
+    const updatedHealth = Math.min(
+      Math.min(oldHealth + regenAmount, oldMaxHealth),
+      newMaxHealth
+    );
+
+    return Math.round(updatedHealth);
+  },
+
+  // Обновленный метод для обновления здоровья после изменений
+  updateHealthAfterChange(newMaxHealth) {
+    const updatedHealth = this.calculateUpdatedHealth(newMaxHealth);
+
+    this.health = updatedHealth;
+    this.maxHealth = newMaxHealth;
     this.lastHealthUpdate = new Date();
   },
 };
@@ -153,9 +156,10 @@ characterSchema.methods = {
 characterSchema.pre('save', function (next) {
   if (this.isNew) {
     this.health = this.getMaxHealth();
+    this.maxHealth = this.getMaxHealth();
   } else {
-    const oldMaxHealth = this.getMaxHealth();
-    this.updateHealthAfterChange(oldMaxHealth);
+    const newMaxHealth = this.getMaxHealth();
+    this.updateHealthAfterChange(newMaxHealth);
   }
 
   if (this.isModified('baseStrength') ||
