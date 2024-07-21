@@ -1,52 +1,28 @@
-import React, { useState, useEffect, useCallback } from 'react';
-import axios from 'axios';
-import { APP_SERVER_URL } from '../../config/config';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import CharItemInfo from './CharItemInfo';
+import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
 
 const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
-  const [itemDetails, setItemDetails] = useState(null);
   const [pressTimer, setPressTimer] = useState(null);
-
-  useEffect(() => {
-    if (inventoryItem) {
-      fetchItemDetails(inventoryItem._id);
-    }
-  }, [inventoryItem]);
-
-  const fetchItemDetails = async (id) => {
-    try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('Токен отсутствует.');
-        return;
-      }
-      const response = await axios.get(`${APP_SERVER_URL}/api/charItem/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
-      setItemDetails(response.data);
-    } catch (error) {
-      console.error('Error fetching item details:', error.response?.data || error.message);
-    }
-  };
 
   const handleMouseDown = useCallback(() => {
     setPressTimer(setTimeout(() => {
-      if (itemDetails) {
-        onShowInfo(itemDetails);
+      if (inventoryItem) {
+        onShowInfo(inventoryItem);
       }
     }, 1000));
-  }, [itemDetails, onShowInfo]);
+  }, [inventoryItem, onShowInfo]);
 
   const handleMouseUp = () => {
     clearTimeout(pressTimer);
   };
 
   const handleClick = () => {
-    if (itemDetails) {
-      if (canEquipItem(itemDetails)) {
+    if (inventoryItem) {
+      if (canEquipItem(inventoryItem)) {
         onClickInventoryItem(inventoryItem._id);
       } else {
-        onShowInfo(itemDetails);
+        onShowInfo(inventoryItem);
       }
     }
   };
@@ -57,10 +33,19 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEqu
     };
   }, [pressTimer]);
 
+  if (!inventoryItem) return null;
+
+  const itemStyle = inventoryItem.isEquipped
+    ? getEquippedCharItemStyle(inventoryItem.gameItem.rarity)
+    : getCharItemStyle(inventoryItem.gameItem.rarity);
+
   return (
     <div
-      className={`aspect-square border border-gray-300 rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-gray-100 overflow-hidden relative ${itemDetails ? 'bg-cover bg-center' : 'bg-transparent'}`}
-      style={itemDetails?.gameItem ? { backgroundImage: `url(${itemDetails.gameItem.image || "https://placehold.co/100"})` } : {}}
+      className={`aspect-square rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-opacity-80 overflow-hidden relative bg-cover bg-center`}
+      style={{
+        ...itemStyle,
+        backgroundImage: `url(${inventoryItem.gameItem.image || "https://placehold.co/100"})`
+      }}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}
@@ -68,19 +53,15 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEqu
       onTouchStart={handleMouseDown}
       onTouchEnd={handleMouseUp}
     >
-      {itemDetails && (
-        <>
-          <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-          <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
-            <div className="font-bold truncate w-full">{itemDetails.gameItem.name}</div>
-            <div>x{itemDetails.quantity}</div>
-          </div>
-          {itemDetails.isEquipped && (
-            <div className="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 rounded-bl">
-              Экипировано
-            </div>
-          )}
-        </>
+      <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+      <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
+        <div className="font-bold truncate w-full">{inventoryItem.gameItem.name}</div>
+        <div>x{inventoryItem.quantity}</div>
+      </div>
+      {inventoryItem.isEquipped && (
+        <div className="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 rounded-bl">
+          Экипировано
+        </div>
       )}
     </div>
   );
@@ -88,63 +69,134 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEqu
 
 const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, character }) => {
   const [filteredInventory, setFilteredInventory] = useState([]);
-  const [activeCategory, setActiveCategory] = useState('all');
   const [selectedItem, setSelectedItem] = useState(null);
+  const [filterCategory, setFilterCategory] = useState('none');
+  const [filterValue, setFilterValue] = useState('all');
+  const [sortBy, setSortBy] = useState('none');
+  const [sortOrder, setSortOrder] = useState('asc');
 
-  const categories = [
-    { id: 'all', name: 'Все' },
-    { id: 'weapon', name: 'Оружие' },
-    { id: 'armor', name: 'Броня' },
-    { id: 'cloack', name: 'Плащи' },
-    { id: 'helmet', name: 'Шлемы' },
-    { id: 'belt', name: 'Пояса' },
-    { id: 'boots', name: 'Обувь' },
-    { id: 'banner', name: 'Знамя' },
-    { id: 'useful', name: 'Полезное' },
-  ];
+  const filterCategories = useMemo(() => [
+    { value: 'none', label: 'Без фильтра' },
+    { value: 'type', label: 'По типу' },
+    { value: 'rarity', label: 'По редкости' },
+    { value: 'class', label: 'По классу' },
+  ], []);
+
+  const filterOptions = useMemo(() => ({
+    type: [
+      { value: 'all', label: 'Все типы' },
+      { value: 'weapon', label: 'Оружие' },
+      { value: 'armor', label: 'Броня' },
+      { value: 'helmet', label: 'Шлемы' },
+      { value: 'shield', label: 'Щиты' },
+      { value: 'cloak', label: 'Плащи' },
+      { value: 'belt', label: 'Пояса' },
+      { value: 'boots', label: 'Обувь' },
+      { value: 'banner', label: 'Знамена' },
+      { value: 'useful', label: 'Полезное' },
+    ],
+    rarity: [
+      { value: 'all', label: 'Все редкости' },
+      { value: 'common', label: 'Обычные' },
+      { value: 'uncommon', label: 'Необычные' },
+      { value: 'rare', label: 'Редкие' },
+      { value: 'epic', label: 'Эпические' },
+      { value: 'legendary', label: 'Легендарные' },
+    ],
+    class: [
+      { value: 'all', label: 'Все классы' },
+      { value: 'Warrior', label: 'Воин' },
+      { value: 'Mage', label: 'Маг' },
+      { value: 'Archer', label: 'Лучник' },
+    ],
+  }), []);
+
+  const sortOptions = useMemo(() => [
+    { value: 'none', label: 'Без сортировки' },
+    { value: 'level', label: 'По уровню' },
+    { value: 'rarity', label: 'По редкости' },
+  ], []);
 
   useEffect(() => {
-    filterInventory();
-  }, [inventory, activeCategory]);
+    filterAndSortInventory();
+  }, [inventory, filterCategory, filterValue, sortBy, sortOrder]);
 
-  const filterInventory = () => {
-    if (activeCategory === 'all') {
-      setFilteredInventory(inventory);
-    } else {
-      const filtered = inventory.filter(item => item.gameItem?.type === activeCategory);
-      setFilteredInventory(filtered);
+  const filterAndSortInventory = useCallback(() => {
+    let filtered = [...inventory];
+
+    // Apply filter
+    if (filterCategory !== 'none' && filterValue !== 'all') {
+      filtered = filtered.filter(item => {
+        switch (filterCategory) {
+          case 'type':
+            return item.gameItem?.type === filterValue;
+          case 'rarity':
+            return item.gameItem?.rarity === filterValue;
+          case 'class':
+            return item.gameItem?.requiredClass.includes(filterValue);
+          default:
+            return true;
+        }
+      });
     }
-  };
 
-  const handleCategoryChange = (categoryId) => {
-    setActiveCategory(categoryId);
-  };
+    // Apply sorting
+    const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    if (sortBy !== 'none') {
+      filtered.sort((a, b) => {
+        let comparison = 0;
+        if (sortBy === 'level') {
+          comparison = a.gameItem.minLevel - b.gameItem.minLevel;
+        } else if (sortBy === 'rarity') {
+          comparison = rarityOrder.indexOf(a.gameItem.rarity) - rarityOrder.indexOf(b.gameItem.rarity);
+        }
+        return sortOrder === 'asc' ? comparison : -comparison;
+      });
+    }
+
+    setFilteredInventory(filtered);
+  }, [inventory, filterCategory, filterValue, sortBy, sortOrder]);
 
   const handleShowInfo = (item) => {
     setSelectedItem(item);
   };
 
+  const renderDropdown = (label, value, onChange, options) => (
+    <div className="mb-2 mr-2">
+      <label className="mr-2">{label}:</label>
+      <select
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        className="p-1 rounded border border-gray-300"
+      >
+        {options.map(option => (
+          <option key={option.value} value={option.value}>{option.label}</option>
+        ))}
+      </select>
+    </div>
+  );
+
   return (
     <div>
-      <div className="flex mt-4 overflow-auto">
-        {categories.map(category => (
+      <div className="mb-4 flex flex-wrap items-center">
+        {renderDropdown('Фильтр', filterCategory, setFilterCategory, filterCategories)}
+        {filterCategory !== 'none' && renderDropdown('Значение', filterValue, setFilterValue, filterOptions[filterCategory])}
+        {renderDropdown('Сортировка', sortBy, setSortBy, sortOptions)}
+        {sortBy !== 'none' && (
           <button
-            key={category.id}
-            className={`px-4 py-2 font-bold transition-colors duration-200 
-              ${activeCategory === category.id ? 'bg-blue-500 text-white' : 'bg-gray-200 text-gray-700 hover:bg-gray-300'}
-              first:rounded-tl-lg last:rounded-tr-lg`}
-            onClick={() => handleCategoryChange(category.id)}
+            onClick={() => setSortOrder(order => order === 'asc' ? 'desc' : 'asc')}
+            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
           >
-            {category.name}
+            {sortOrder === 'asc' ? '↑' : '↓'}
           </button>
-        ))}
+        )}
       </div>
       {equipError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <span className="block sm:inline">{equipError}</span>
         </div>
       )}
-      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-b-lg">
+      <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-lg">
         {filteredInventory.map((item, index) => (
           <InventorySlot
             key={`${item._id}-${index}`}
@@ -154,6 +206,7 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
             canEquipItem={canEquipItem}
           />
         ))}
+        {/* Заполняем пустые слоты, чтобы избежать мерцания */}
         {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
           <div
             key={`empty-${index}`}
@@ -162,7 +215,7 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
         ))}
       </div>
       {selectedItem && (
-        <div className="fixed p-4 inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <CharItemInfo 
             charItem={selectedItem} 
             onClose={() => setSelectedItem(null)} 
