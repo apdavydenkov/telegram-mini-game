@@ -182,6 +182,7 @@ const Character = ({ character, onUnequipItem }) => {
             charItem={selectedItem} 
             onClose={() => setSelectedItem(null)} 
             character={character}
+            onEquipItem={onUnequipItem}
           />
         </div>
       )}

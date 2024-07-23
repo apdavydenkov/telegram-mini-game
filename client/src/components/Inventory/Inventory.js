@@ -58,11 +58,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEqu
         <div className="font-bold truncate w-full">{inventoryItem.gameItem.name}</div>
         <div>x{inventoryItem.quantity}</div>
       </div>
-      {inventoryItem.isEquipped && (
-        <div className="absolute top-0 right-0 bg-green-500 text-white text-xs px-1 rounded-bl">
-          Экипировано
-        </div>
-      )}
+
     </div>
   );
 };
@@ -216,10 +212,11 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
       </div>
       {selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <CharItemInfo 
-            charItem={selectedItem} 
-            onClose={() => setSelectedItem(null)} 
+          <CharItemInfo
+            charItem={selectedItem}
+            onClose={() => setSelectedItem(null)}
             character={character}
+            onEquipItem={onClickInventoryItem}
           />
         </div>
       )}

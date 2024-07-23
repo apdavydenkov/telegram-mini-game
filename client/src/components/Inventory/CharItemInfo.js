@@ -1,11 +1,17 @@
-import React from 'react';
-import { getCharItemStyle } from '../../utils/charItemUtils';
+import React, { useState, useEffect } from 'react';
+import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
 
-const CharItemInfo = ({ charItem, onClose, character }) => {
+const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
+  const [isEquipped, setIsEquipped] = useState(charItem.isEquipped);
+
+  useEffect(() => {
+    setIsEquipped(charItem.isEquipped);
+  }, [charItem.isEquipped]);
+
   if (!charItem || !charItem.gameItem) return null;
 
   const { gameItem } = charItem;
-  const itemStyle = getCharItemStyle(gameItem.rarity);
+  const itemStyle = isEquipped ? getEquippedCharItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
 
   const isStatInsufficient = (stat, requiredValue) => {
     const characterStat = character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`];
@@ -18,6 +24,20 @@ const CharItemInfo = ({ charItem, onClose, character }) => {
     rare: 'bg-blue-600',
     epic: 'bg-purple-600',
     legendary: 'bg-orange-500'
+  };
+
+  const canEquipItem = () => {
+    if (character.level < gameItem.minLevel) return false;
+    if (gameItem.requiredClass.length && !gameItem.requiredClass.includes(character.class)) return false;
+    for (const [stat, value] of Object.entries(gameItem.requiredStats)) {
+      if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
+    }
+    return true;
+  };
+
+  const handleEquipToggle = async () => {
+    await onEquipItem(charItem._id);
+    setIsEquipped(!isEquipped);
   };
 
   return (
@@ -33,7 +53,9 @@ const CharItemInfo = ({ charItem, onClose, character }) => {
       </div>
       <div className="p-6 bg-gray-50">
         <div className="flex mb-4">
-          <img src={gameItem.image || "https://placehold.co/100x100?text=No+Image"} alt={gameItem.name} className="w-24 h-24 object-cover mr-4 rounded-lg shadow" style={{borderColor: itemStyle.borderColor, borderWidth: '2px'}} />
+          <div className="w-24 h-24 mr-4 rounded-lg shadow overflow-hidden" style={itemStyle}>
+            <img src={gameItem.image || "https://placehold.co/100x100?text=No+Image"} alt={gameItem.name} className="w-full h-full object-cover" />
+          </div>
           <div>
             <p className="mb-1">
               <span className="font-semibold">Мин. уровень:</span> 
@@ -45,7 +67,7 @@ const CharItemInfo = ({ charItem, onClose, character }) => {
             </p>
           </div>
         </div>
-        {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
+                {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
           <div className="mb-4 p-3 bg-white rounded shadow">
             <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
             <div className="grid grid-cols-2 gap-2">
@@ -70,9 +92,20 @@ const CharItemInfo = ({ charItem, onClose, character }) => {
         {gameItem.description && (
           <p className="text-sm italic text-gray-600 mt-4">{gameItem.description}</p>
         )}
-        {charItem.isEquipped && (
+        {isEquipped ? (
           <p className="mt-4 text-green-600 font-bold">Экипировано</p>
-        )}
+        ) : null}
+        <button
+          onClick={handleEquipToggle}
+          className={`mt-4 px-4 py-2 rounded ${
+            canEquipItem() || isEquipped
+              ? 'bg-blue-500 hover:bg-blue-600 text-white'
+              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+          }`}
+          disabled={!canEquipItem() && !isEquipped}
+        >
+          {isEquipped ? 'Снять' : 'Надеть'}
+        </button>
       </div>
     </div>
   );
