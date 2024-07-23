@@ -5,6 +5,7 @@
 import React, { useState, useCallback } from 'react';
 import CharItemInfo from '../Inventory/CharItemInfo';
 import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import CharacterStatus from './CharacterStatus';
 
 const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
   const [pressTimer, setPressTimer] = useState(null);
@@ -89,7 +90,7 @@ const Character = ({ character, onUnequipItem }) => {
             {character.level}
           </span>
           <span className="ml-2 bg-gray-300 text-gray-800 rounded-md px-2 py-1 text-xs">
-            {character.status}
+          <CharacterStatus character={character} />
           </span>
         </div>
         

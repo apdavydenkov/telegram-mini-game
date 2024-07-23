@@ -6,6 +6,7 @@ const authRoutes = require('./routes/authRoutes');
 const characterRoutes = require('./routes/characterRoutes');
 const gameItemRoutes = require('./routes/gameItemRoutes');
 const charItemRoutes = require('./routes/charItemRoutes');
+const statusRoutes = require('./routes/statusRoutes');
 
 dotenv.config({ path: '.env' });
 
@@ -26,6 +27,7 @@ app.use('/api/auth', authRoutes);
 app.use('/api/character', characterRoutes);
 app.use('/api/gameItem', gameItemRoutes);
 app.use('/api/charItem', charItemRoutes);
+app.use('/api/status', statusRoutes);
 
 const PORT = process.env.PORT || 5000;
 

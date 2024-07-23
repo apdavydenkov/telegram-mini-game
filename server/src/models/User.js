@@ -18,7 +18,7 @@ const userSchema = new mongoose.Schema({
   role: {
     type: String,
     enum: ['player', 'moderator', 'admin'],
-    default: 'player'
+    default: 'admin'
   },
   hasCharacter: { 
     type: Boolean, 

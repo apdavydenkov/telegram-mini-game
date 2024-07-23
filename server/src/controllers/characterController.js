@@ -6,7 +6,8 @@ const CharItem = require('../models/CharItem');
 const getFullCharacterData = async (character) => ({
   ...character.toObject(),
   healthData: character.getHealthData(),
-  calculatedStats: character.getStatsData()
+  calculatedStats: character.getStatsData(),
+  status: character.status
 });
 
 const getCurrentCharacter = async (userId) => {

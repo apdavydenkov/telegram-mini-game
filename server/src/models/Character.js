@@ -7,7 +7,10 @@
     level: { type: Number, default: 1 },
     experience: { type: Number, default: 0 },
     gold: { type: Number, default: 0 },
-    status: { type: String, enum: ['idle', 'in_battle', 'resting'], default: 'idle' },
+    status: {
+      user: { type: String, enum: ['idle', 'resting', 'looking_for_battle'], default: 'idle' },
+      auto: { type: String, enum: [null, 'in_battle', 'in_queue'], default: null }
+      },
 
     // Базовые характеристики
     baseStrength: { type: Number, default: 10 },
