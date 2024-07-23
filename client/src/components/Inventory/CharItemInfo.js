@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import { charItem } from '../../services/api';
 
-const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
-  const [isEquipped, setIsEquipped] = useState(charItem.isEquipped);
+const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipItem, onDeleteItem }) => {
+  const [isEquipped, setIsEquipped] = useState(initialCharItem.isEquipped);
 
   useEffect(() => {
-    setIsEquipped(charItem.isEquipped);
-  }, [charItem.isEquipped]);
+    setIsEquipped(initialCharItem.isEquipped);
+  }, [initialCharItem.isEquipped]);
 
-  if (!charItem || !charItem.gameItem) return null;
+  if (!initialCharItem || !initialCharItem.gameItem) return null;
 
-  const { gameItem } = charItem;
+  const { gameItem } = initialCharItem;
   const itemStyle = isEquipped ? getEquippedCharItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
 
   const isStatInsufficient = (stat, requiredValue) => {
@@ -36,8 +37,24 @@ const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
   };
 
   const handleEquipToggle = async () => {
-    await onEquipItem(charItem._id);
+    await onEquipItem(initialCharItem._id);
     setIsEquipped(!isEquipped);
+  };
+
+  const handleDelete = async () => {
+    if (isEquipped) {
+      alert('Нельзя удалить экипированный предмет');
+      return;
+    }
+    
+    try {
+      await charItem.delete(initialCharItem._id);
+      onDeleteItem(initialCharItem._id);
+      onClose();
+    } catch (error) {
+      console.error('Ошибка удаления предмета:', error);
+      alert('Не удалось удалить предмет');
+    }
   };
 
   return (
@@ -67,7 +84,7 @@ const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
             </p>
           </div>
         </div>
-                {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
+        {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
           <div className="mb-4 p-3 bg-white rounded shadow">
             <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
             <div className="grid grid-cols-2 gap-2">
@@ -106,6 +123,14 @@ const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
         >
           {isEquipped ? 'Снять' : 'Надеть'}
         </button>
+        {!isEquipped && (
+          <button
+            onClick={handleDelete}
+            className="mt-4 ml-4 px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+          >
+            Удалить
+          </button>
+        )}
       </div>
     </div>
   );

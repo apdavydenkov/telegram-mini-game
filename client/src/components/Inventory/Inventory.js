@@ -157,6 +157,10 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
     setSelectedItem(item);
   };
 
+  const handleDeleteItem = (deletedItemId) => {
+    setFilteredInventory(prevInventory => prevInventory.filter(item => item._id !== deletedItemId));
+  };
+
   const renderDropdown = (label, value, onChange, options) => (
     <div className="mb-2 mr-2">
       <label className="mr-2">{label}:</label>
@@ -217,6 +221,7 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
             onClose={() => setSelectedItem(null)}
             character={character}
             onEquipItem={onClickInventoryItem}
+            onDeleteItem={handleDeleteItem}
           />
         </div>
       )}
