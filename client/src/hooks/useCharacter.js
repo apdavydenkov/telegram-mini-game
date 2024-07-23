@@ -136,6 +136,19 @@ const useCharacter = () => {
     }
   }, [calculateMaxHealth]);
 
+  const removeItem = useCallback(async (itemId) => {
+    try {
+      await character.removeItem(itemId);
+      setCharacterData(prevData => ({
+        ...prevData,
+        inventory: prevData.inventory.filter(item => item._id !== itemId)
+      }));
+    } catch (error) {
+      console.error('Error removing item:', error);
+      throw error;
+    }
+  }, []);
+
   useEffect(() => {
     fetchCharacter();
     return () => {
@@ -163,6 +176,7 @@ const useCharacter = () => {
     isUpdating,
     updateCharacter,
     equipItem,
+    removeItem,
     fetchCharacter
   };
 };

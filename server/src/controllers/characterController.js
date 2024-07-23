@@ -137,6 +137,22 @@ exports.equipCharItem = async (req, res) => {
   }
 };
 
+exports.removeItem = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const character = await getCurrentCharacter(req.user._id);
+
+    character.inventory = character.inventory.filter(item => item._id.toString() !== itemId);
+    await character.save();
+
+    await CharItem.findByIdAndDelete(itemId);
+
+    res.json(await getFullCharacterData(character));
+  } catch (error) {
+    handleError(res, error, 'Ошибка удаления предмета');
+  }
+};
+
 exports.addItemToInventory = async (req, res) => {
   try {
     const { gameItemId, quantity = 1 } = req.body;

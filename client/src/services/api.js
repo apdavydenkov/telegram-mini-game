@@ -32,6 +32,7 @@ export const character = {
   update: (characterData) => api.put('/api/character', characterData),
   equipItem: (charItemId) => api.post('/api/character/equip', { charItemId }),
   addItem: (gameItemId, quantity) => api.post('/api/character/addItem', { gameItemId, quantity }),
+  removeItem: (itemId) => api.delete(`/api/character/removeItem/${itemId}`),
   getHealth: () => api.get('/api/character/health'),
   damage: (damage) => api.post('/api/character/damage', { damage }),
 };

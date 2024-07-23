@@ -49,7 +49,9 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
     
     try {
       await charItem.delete(initialCharItem._id);
-      onDeleteItem(initialCharItem._id);
+      if (typeof onDeleteItem === 'function') {
+        onDeleteItem(initialCharItem._id);
+      }
       onClose();
     } catch (error) {
       console.error('Ошибка удаления предмета:', error);

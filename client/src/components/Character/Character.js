@@ -29,7 +29,7 @@ const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
   };
 
   return (
-    <div 
+    <div
       className="w-full h-full flex items-center justify-center cursor-pointer"
       style={item ? getEquippedCharItemStyle(item.gameItem.rarity) : {}}
       onClick={handleClick}
@@ -41,9 +41,9 @@ const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
     >
       {item ? (
         <div className="w-full h-full relative">
-          <img 
-            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`} 
-            alt={item.gameItem.name} 
+          <img
+            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`}
+            alt={item.gameItem.name}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
@@ -53,9 +53,9 @@ const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
           </div>
         </div>
       ) : (
-        <img 
-          src={`https://placehold.co/60x60?text=${slot}`} 
-          alt={slot} 
+        <img
+          src={`https://placehold.co/60x60?text=${slot}`}
+          alt={slot}
           className="w-full h-full object-cover"
         />
       )}
@@ -63,7 +63,7 @@ const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
   );
 };
 
-const Character = ({ character, onUnequipItem }) => {
+const Character = ({ character, onUnequipItem, onDeleteItem }) => {
   const [selectedItem, setSelectedItem] = useState(null);
 
   if (!character) {
@@ -90,10 +90,10 @@ const Character = ({ character, onUnequipItem }) => {
             {character.level}
           </span>
           <span className="ml-2 bg-gray-300 text-gray-800 rounded-md px-2 py-1 text-xs">
-          <CharacterStatus character={character} />
+            <CharacterStatus character={character} />
           </span>
         </div>
-        
+
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-yellow-400 absolute left-0 top-0"
@@ -103,7 +103,7 @@ const Character = ({ character, onUnequipItem }) => {
             EXP: {character.experience}/100
           </div>
         </div>
-        
+
         <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-red-500 absolute left-0 top-0"
@@ -178,11 +178,12 @@ const Character = ({ character, onUnequipItem }) => {
       </div>
       {selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <CharItemInfo 
-            charItem={selectedItem} 
-            onClose={() => setSelectedItem(null)} 
+          <CharItemInfo
+            charItem={selectedItem}
+            onClose={() => setSelectedItem(null)}
             character={character}
             onEquipItem={onUnequipItem}
+            onDeleteItem={onDeleteItem}
           />
         </div>
       )}

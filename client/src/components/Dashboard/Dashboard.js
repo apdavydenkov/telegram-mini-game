@@ -37,7 +37,8 @@ const Dashboard = () => {
     isUpdating,
     updateCharacter,
     equipItem,
-    fetchCharacter
+    fetchCharacter,
+    removeItem
   } = useCharacter();
 
   if (authLoading || characterLoading) {
@@ -77,6 +78,16 @@ const Dashboard = () => {
     await equipItem(itemId); // Используем ту же функцию, что и для экипировки
   };
 
+  const handleDeleteItem = async (itemId) => {
+    try {
+      await removeItem(itemId);  // Используйте функцию removeItem из хука
+      setEquipError('');
+    } catch (error) {
+      console.error('Ошибка удаления предмета:', error);
+      setEquipError('Ошибка удаления предмета. Пожалуйста, попробуйте еще раз.');
+    }
+  };
+
   const handleCharacterCreated = () => {
     fetchCharacter();
   };
@@ -101,6 +112,7 @@ const Dashboard = () => {
         <Character
           character={character}
           onUnequipItem={handleUnequipItem}
+          onDeleteItem={handleDeleteItem}
         />
         <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
           <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
