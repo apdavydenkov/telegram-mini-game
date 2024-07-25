@@ -1,17 +1,15 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
+import FilterSortPanel from '../Interface/FilterSortPanel';
 
 const AdminGameItemList = () => {
   const navigate = useNavigate();
   const [gameItems, setGameItems] = useState([]);
+  const [filteredGameItems, setFilteredGameItems] = useState([]);
 
-  useEffect(() => {
-    fetchGameItems();
-  }, []);
-
-  const fetchGameItems = async () => {
+  const fetchGameItems = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -23,10 +21,16 @@ const AdminGameItemList = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGameItems(response.data);
+      setFilteredGameItems(response.data);
     } catch (error) {
       console.error('Error fetching game items:', error.response?.data || error.message);
     }
-  };
+  }, [navigate]);
+
+
+  useEffect(() => {
+    fetchGameItems();
+  }, [fetchGameItems]);
 
   const handleDelete = async (gameItemId) => {
     if (window.confirm('Are you sure you want to delete this game item?')) {
@@ -41,14 +45,15 @@ const AdminGameItemList = () => {
       }
     }
   };
-  
+
   const handleSendGameItem = async (gameItemId) => {
     const characterId = prompt("Enter the character ID to send the game item to:");
-    if (characterId) {
+    const quantity = prompt("Enter the quantity to send:");
+    if (characterId && quantity) {
       try {
         const token = localStorage.getItem('token');
-        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`, 
-          {},
+        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`,
+          { quantity: parseInt(quantity, 10) },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('Game item sent successfully');
@@ -67,6 +72,11 @@ const AdminGameItemList = () => {
           Create New
         </Link>
       </div>
+      <FilterSortPanel
+        items={gameItems}
+        onFilterSort={setFilteredGameItems}
+        itemType="gameItem"
+      />
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -79,7 +89,7 @@ const AdminGameItemList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {gameItems.map((gameItem) => (
+            {filteredGameItems.map((gameItem) => (
               <tr key={gameItem._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">

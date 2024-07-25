@@ -39,7 +39,9 @@ const gameItemSchema = new mongoose.Schema({
     counterAttack: { type: Number, default: 0 },
     health: { type: Number, default: 0 },
     healthRegenRate: { type: Number, default: 0 }
-  }
+  },
+  isStackable: { type: Boolean, default: false },
+  maxQuantity: { type: Number, default: 1 }
 });
 
 module.exports = mongoose.models.GameItem || mongoose.model('GameItem', gameItemSchema);

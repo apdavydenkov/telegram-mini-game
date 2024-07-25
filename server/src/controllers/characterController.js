@@ -15,8 +15,7 @@ const getCurrentCharacter = async (userId) => {
     path: 'inventory',
     populate: { path: 'gameItem' }
   });
-  if (!character) throw new Error('Персонаж не найден');
-  return character;
+  return character; // Возвращаем null, если персонаж не найден
 };
 
 const handleError = (res, error, message) => {
@@ -57,9 +56,13 @@ exports.createCharacter = async (req, res) => {
 exports.getCharacter = async (req, res) => {
   try {
     const character = await getCurrentCharacter(req.user._id);
+    if (!character) {
+      return res.status(404).json({ message: 'Character not found', hasCharacter: false });
+    }
     res.json(await getFullCharacterData(character));
   } catch (error) {
-    handleError(res, error, 'Ошибка при получении персонажа');
+    console.error('Ошибка при получении персонажа:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
 
@@ -88,7 +91,7 @@ exports.updateCharacter = async (req, res) => {
 
 exports.equipCharItem = async (req, res) => {
   try {
-    const { charItemId } = req.body;
+    const { charItemId, quantity = 1 } = req.body;
     const character = await getCurrentCharacter(req.user._id);
 
     const charItemToEquip = character.inventory.find(charItem => charItem._id.toString() === charItemId);
@@ -97,35 +100,65 @@ exports.equipCharItem = async (req, res) => {
     const gameItemType = charItemToEquip.gameItem.type;
 
     if (charItemToEquip.isEquipped) {
-      charItemToEquip.isEquipped = false;
-      charItemToEquip.slot = null;
+      // Снятие предмета
+      if (charItemToEquip.gameItem.isStackable) {
+        charItemToEquip.equippedQuantity = Math.max(0, charItemToEquip.equippedQuantity - quantity);
+        if (charItemToEquip.equippedQuantity === 0) {
+          charItemToEquip.isEquipped = false;
+          charItemToEquip.slot = null;
+        }
+      } else {
+        charItemToEquip.isEquipped = false;
+        charItemToEquip.slot = null;
+      }
     } else {
+      // Надевание предмета
       if (gameItemType === 'useful') {
         const usefulSlots = ['useful1', 'useful2', 'useful3'];
-        const emptySlot = usefulSlots.find(slot => !character.inventory.some(charItem => charItem.isEquipped && charItem.slot === slot));
-        
-        if (emptySlot) {
-          charItemToEquip.slot = emptySlot;
-        } else {
-          const charItemInThirdSlot = character.inventory.find(charItem => charItem.isEquipped && charItem.slot === 'useful3');
-          if (charItemInThirdSlot) {
-            Object.assign(charItemInThirdSlot, { isEquipped: false, slot: null });
-            await charItemInThirdSlot.save();
+        let slotToEquip = null;
+
+        for (const slot of usefulSlots) {
+          const itemInSlot = character.inventory.find(item => item.isEquipped && item.slot === slot);
+          if (!itemInSlot) {
+            slotToEquip = slot;
+            break;
           }
-          charItemToEquip.slot = 'useful3';
         }
+
+        if (!slotToEquip) {
+          // Если все слоты заняты, заменяем предмет в последнем слоте
+          const itemToUnequip = character.inventory.find(item => item.isEquipped && item.slot === 'useful3');
+          if (itemToUnequip) {
+            itemToUnequip.isEquipped = false;
+            itemToUnequip.slot = null;
+            if (itemToUnequip.gameItem.isStackable) {
+              itemToUnequip.equippedQuantity = 0;
+            }
+            await itemToUnequip.save();
+          }
+          slotToEquip = 'useful3';
+        }
+
+        charItemToEquip.slot = slotToEquip;
       } else {
         const equippedCharItem = character.inventory.find(charItem => 
           charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === gameItemType
         );
         if (equippedCharItem) {
-          Object.assign(equippedCharItem, { isEquipped: false, slot: null });
+          equippedCharItem.isEquipped = false;
+          equippedCharItem.slot = null;
+          if (equippedCharItem.gameItem.isStackable) {
+            equippedCharItem.equippedQuantity = 0;
+          }
           await equippedCharItem.save();
         }
         charItemToEquip.slot = gameItemType;
       }
-      
+
       charItemToEquip.isEquipped = true;
+      if (charItemToEquip.gameItem.isStackable) {
+        charItemToEquip.equippedQuantity = Math.min(quantity, charItemToEquip.quantity);
+      }
     }
 
     await charItemToEquip.save();
@@ -140,12 +173,29 @@ exports.equipCharItem = async (req, res) => {
 exports.removeItem = async (req, res) => {
   try {
     const { itemId } = req.params;
+    const { quantity } = req.body; // Новый параметр для указания количества удаляемых предметов
     const character = await getCurrentCharacter(req.user._id);
 
-    character.inventory = character.inventory.filter(item => item._id.toString() !== itemId);
-    await character.save();
+    const charItem = await CharItem.findById(itemId).populate('gameItem');
+    if (!charItem) {
+      throw new Error('Предмет не найден');
+    }
 
-    await CharItem.findByIdAndDelete(itemId);
+    if (charItem.isEquipped) {
+      throw new Error('Нельзя удалить экипированный предмет');
+    }
+
+    if (charItem.gameItem.isStackable && quantity && quantity < charItem.quantity) {
+      // Уменьшаем количество предметов в стеке
+      charItem.quantity -= quantity;
+      await charItem.save();
+    } else {
+      // Удаляем предмет полностью
+      character.inventory = character.inventory.filter(item => item.toString() !== itemId);
+      await CharItem.findByIdAndDelete(itemId);
+    }
+
+    await character.save();
 
     res.json(await getFullCharacterData(character));
   } catch (error) {
@@ -157,21 +207,51 @@ exports.addItemToInventory = async (req, res) => {
   try {
     const { gameItemId, quantity = 1 } = req.body;
     const character = await getCurrentCharacter(req.user._id);
-
     const gameItem = await GameItem.findById(gameItemId);
+
     if (!gameItem) throw new Error('Игровой предмет не найден');
 
-    let charItem = await CharItem.findOne({ character: character._id, gameItem: gameItemId, isEquipped: false });
-    if (charItem) {
-      charItem.quantity += quantity;
+    if (gameItem.isStackable) {
+      let charItem = await CharItem.findOne({ 
+        character: character._id, 
+        gameItem: gameItemId, 
+        isEquipped: false 
+      });
+
+      if (charItem) {
+        const newQuantity = charItem.quantity + quantity;
+        if (newQuantity <= gameItem.maxQuantity) {
+          charItem.quantity = newQuantity;
+        } else {
+          charItem.quantity = gameItem.maxQuantity;
+          const remainingQuantity = newQuantity - gameItem.maxQuantity;
+          if (remainingQuantity > 0) {
+            await CharItem.create({
+              character: character._id,
+              gameItem: gameItemId,
+              quantity: remainingQuantity
+            });
+          }
+        }
+        await charItem.save();
+      } else {
+        charItem = await CharItem.create({
+          character: character._id,
+          gameItem: gameItemId,
+          quantity: Math.min(quantity, gameItem.maxQuantity)
+        });
+        character.inventory.push(charItem._id);
+      }
     } else {
-      charItem = new CharItem({ character: character._id, gameItem: gameItemId, quantity });
+      const charItem = await CharItem.create({
+        character: character._id,
+        gameItem: gameItemId,
+        quantity: 1
+      });
+      character.inventory.push(charItem._id);
     }
 
-    await charItem.save();
-    character.inventory.push(charItem._id);
     await character.save();
-
     res.json(await getFullCharacterData(character));
   } catch (error) {
     handleError(res, error, 'Ошибка добавления предмета в инвентарь');

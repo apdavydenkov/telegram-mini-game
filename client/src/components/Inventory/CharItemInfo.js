@@ -4,6 +4,8 @@ import { charItem } from '../../services/api';
 
 const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipItem, onDeleteItem }) => {
   const [isEquipped, setIsEquipped] = useState(initialCharItem.isEquipped);
+  const [deleteQuantity, setDeleteQuantity] = useState(1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
     setIsEquipped(initialCharItem.isEquipped);
@@ -41,16 +43,23 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
     setIsEquipped(!isEquipped);
   };
 
-  const handleDelete = async () => {
+  const handleDeleteConfirm = async () => {
     if (isEquipped) {
       alert('Нельзя удалить экипированный предмет');
       return;
     }
     
     try {
-      await charItem.delete(initialCharItem._id);
-      if (typeof onDeleteItem === 'function') {
-        onDeleteItem(initialCharItem._id);
+      if (gameItem.isStackable && deleteQuantity < initialCharItem.quantity) {
+        await charItem.update(initialCharItem._id, { quantity: initialCharItem.quantity - deleteQuantity });
+        if (typeof onDeleteItem === 'function') {
+          onDeleteItem(initialCharItem._id, deleteQuantity);
+        }
+      } else {
+        await charItem.delete(initialCharItem._id);
+        if (typeof onDeleteItem === 'function') {
+          onDeleteItem(initialCharItem._id, initialCharItem.quantity);
+        }
       }
       onClose();
     } catch (error) {
@@ -59,7 +68,7 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
     }
   };
 
-  return (
+return (
     <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
       <div className={`relative p-6 ${rarityColors[gameItem.rarity]} text-white`}>
         <h2 className="text-2xl font-bold mb-2">{gameItem.name}</h2>
@@ -84,6 +93,11 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
               <span className="font-semibold">Класс:</span> 
               <span className={!gameItem.requiredClass.includes(character.class) ? "text-red-500 font-bold" : ""}> {gameItem.requiredClass.join(', ')}</span>
             </p>
+            {gameItem.isStackable && (
+              <p className="mb-1">
+                <span className="font-semibold">Количество:</span> {initialCharItem.quantity}
+              </p>
+            )}
           </div>
         </div>
         {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
@@ -114,24 +128,60 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
         {isEquipped ? (
           <p className="mt-4 text-green-600 font-bold">Экипировано</p>
         ) : null}
-        <button
-          onClick={handleEquipToggle}
-          className={`mt-4 px-4 py-2 rounded ${
-            canEquipItem() || isEquipped
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          disabled={!canEquipItem() && !isEquipped}
-        >
-          {isEquipped ? 'Снять' : 'Надеть'}
-        </button>
-        {!isEquipped && (
+        <div className="mt-4 flex justify-between">
           <button
-            onClick={handleDelete}
-            className="mt-4 ml-4 px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+            onClick={handleEquipToggle}
+            className={`px-4 py-2 rounded ${
+              canEquipItem() || isEquipped
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+            disabled={!canEquipItem() && !isEquipped}
           >
-            Удалить
+            {isEquipped ? 'Снять' : 'Надеть'}
           </button>
+          {!isEquipped && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+            >
+              Удалить
+            </button>
+          )}
+        </div>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg">
+              <h3 className="text-lg font-bold mb-4">Подтвердите удаление</h3>
+              {gameItem.isStackable && (
+                <div className="mb-4">
+                  <label className="block mb-2">Количество для удаления:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={initialCharItem.quantity}
+                    value={deleteQuantity}
+                    onChange={(e) => setDeleteQuantity(Math.max(1, Math.min(initialCharItem.quantity, parseInt(e.target.value) || 1)))}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-gray-800 mr-2"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
     </div>

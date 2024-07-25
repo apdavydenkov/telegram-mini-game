@@ -7,6 +7,7 @@ import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
 import useAuth from '../../hooks/useAuth';
 import useCharacter from '../../hooks/useCharacter';
+import Header from '../Interface/Header';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -29,7 +30,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('characterstats');
   const [equipError, setEquipError] = useState('');
   const navigate = useNavigate();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     character,
     loading: characterLoading,
@@ -54,33 +55,33 @@ const Dashboard = () => {
     await updateCharacter(updatedCharacter);
   };
 
-  const canEquipItem = (item) => {
-    if (!item || !item.gameItem) return false;
-    if (character.level < item.gameItem.minLevel) return false;
-    if (item.gameItem.requiredClass.length && !item.gameItem.requiredClass.includes(character.class)) return false;
-    for (const [stat, value] of Object.entries(item.gameItem.requiredStats)) {
+  const canEquipItem = (charItem) => {
+    if (!charItem || !charItem.gameItem) return false;
+    if (character.level < charItem.gameItem.minLevel) return false;
+    if (charItem.gameItem.requiredClass.length && !charItem.gameItem.requiredClass.includes(character.class)) return false;
+    for (const [stat, value] of Object.entries(charItem.gameItem.requiredStats)) {
       if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
     }
     return true;
   };
 
-  const handleEquipItem = async (itemId) => {
-    const item = character.inventory.find(i => i._id === itemId);
-    if (item.isEquipped || canEquipItem(item)) {
-      const result = await equipItem(itemId);
+  const handleEquipItem = async (charItemId) => {
+    const charItem = character.inventory.find(i => i._id === charItemId);
+    if (charItem.isEquipped || canEquipItem(charItem)) {
+      const result = await equipItem(charItemId);
       setEquipError(result.success ? '' : result.message);
     } else {
       setEquipError('Не выполнены минимальные требования для надевания этого предмета.');
     }
   };
 
-  const handleUnequipItem = async (itemId) => {
-    await equipItem(itemId); // Используем ту же функцию, что и для экипировки
+  const handleUnequipItem = async (charItemId) => {
+    await equipItem(charItemId);
   };
 
-  const handleDeleteItem = async (itemId) => {
+  const handleDeleteItem = async (charItemId) => {
     try {
-      await removeItem(itemId);  // Используйте функцию removeItem из хука
+      await removeItem(charItemId);
       setEquipError('');
     } catch (error) {
       console.error('Ошибка удаления предмета:', error);
@@ -90,11 +91,6 @@ const Dashboard = () => {
 
   const handleCharacterCreated = () => {
     fetchCharacter();
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
   };
 
   const renderContent = () => {
@@ -145,15 +141,7 @@ const Dashboard = () => {
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Добро пожаловать, {user.username}!</h1>
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
-        >
-          Выйти
-        </button>
-      </div>
+      <Header />
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">

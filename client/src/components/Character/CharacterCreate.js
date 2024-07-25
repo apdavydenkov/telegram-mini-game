@@ -5,29 +5,23 @@ import { APP_SERVER_URL } from '../../config/config';
 const CharacterCreate = ({ onCharacterCreated }) => {
   const [nickname, setNickname] = useState('');
   const [characterClass, setCharacterClass] = useState('Warrior');
-  const [baseStrength, setBaseStrength] = useState(10);
-  const [baseDexterity, setBaseDexterity] = useState(10);
-  const [baseIntelligence, setBaseIntelligence] = useState(10);
-  const [baseEndurance, setBaseEndurance] = useState(10);
-  const [baseCharisma, setBaseCharisma] = useState(10);
+  const [stats, setStats] = useState({
+    baseStrength: 10,
+    baseDexterity: 10,
+    baseIntelligence: 10,
+    baseEndurance: 10,
+    baseCharisma: 10
+  });
   const [availablePoints, setAvailablePoints] = useState(5);
 
   const handleStatChange = (stat, value) => {
     if (availablePoints > 0 || value < 0) {
-      const statSetters = {
-        baseStrength: setBaseStrength,
-        baseDexterity: setBaseDexterity,
-        baseIntelligence: setBaseIntelligence,
-        baseEndurance: setBaseEndurance,
-        baseCharisma: setBaseCharisma
-      };
-
-      const currentValue = {
-        baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma
-      }[stat];
-
-      if (statSetters[stat]) {
-        statSetters[stat](Math.max(10, currentValue + value));
+      const currentValue = stats[stat];
+      if (currentValue + value >= 10) {
+        setStats(prevStats => ({
+          ...prevStats,
+          [stat]: currentValue + value
+        }));
         setAvailablePoints(prev => prev - value);
       }
     }
@@ -38,7 +32,7 @@ const CharacterCreate = ({ onCharacterCreated }) => {
     try {
       const token = localStorage.getItem('token');
       const response = await axios.post(`${APP_SERVER_URL}/api/character`,
-        { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma },
+        { nickname, class: characterClass, ...stats },
         { headers: { Authorization: `Bearer ${token}` } }
       );
       onCharacterCreated(response.data);
@@ -69,11 +63,11 @@ const CharacterCreate = ({ onCharacterCreated }) => {
           <option value="Archer">Archer</option>
         </select>
         <p className="mb-2">Available points: {availablePoints}</p>
-        {['baseStrength', 'baseDexterity', 'baseIntelligence', 'baseEndurance', 'baseCharisma'].map((stat) => (
+        {Object.entries(stats).map(([stat, value]) => (
           <div key={stat} className="flex justify-between items-center mb-2">
-            <span className="capitalize">{stat.replace('base', '')}: {eval(stat)}</span>
+            <span className="capitalize">{stat.replace('base', '')}: {value}</span>
             <div>
-              <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
+              <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={value <= 10}>-</button>
               <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>
             </div>
           </div>

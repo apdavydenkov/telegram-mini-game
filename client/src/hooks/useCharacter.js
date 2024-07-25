@@ -7,18 +7,24 @@ const useCharacter = () => {
   const [error, setError] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
   const healthUpdateInterval = useRef(null);
-  const updateTimeoutRef = useRef(null);
 
-  const calculateMaxHealth = useCallback((char) => {
-    if (!char) return 0;
-    const baseHealth = 100 * char.level;
-    const enduranceBonus = char.baseEndurance * 5;
-    const equipmentBonus = char.inventory
-      .filter(item => item.isEquipped && item.gameItem)
-      .reduce((sum, item) => {
-        return sum + (item.gameItem.stats.endurance || 0) * 5 + (item.gameItem.stats.health || 0);
-      }, 0);
-    return baseHealth + enduranceBonus + equipmentBonus;
+  const fetchCharacter = useCallback(async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const { data } = await character.get();
+      if (data) {
+        setCharacterData(data);
+      } else {
+        setCharacterData(null);
+      }
+    } catch (err) {
+      console.error('Error fetching character:', err);
+      setError('Failed to load character data');
+      setCharacterData(null);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   const updateHealth = useCallback(() => {
@@ -42,32 +48,6 @@ const useCharacter = () => {
     }));
   }, [characterData]);
 
-  const fetchCharacter = useCallback(async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const { data } = await character.get();
-      const maxHealth = calculateMaxHealth(data);
-      setCharacterData({
-        ...data,
-        healthData: {
-          currentHealth: data.healthData.currentHealth,
-          maxHealth: maxHealth,
-          lastHealthUpdate: new Date().toISOString()
-        },
-        calculatedStats: {
-          ...data.calculatedStats,
-          healthRegenRate: maxHealth / data.fullRegenTime
-        }
-      });
-    } catch (err) {
-      console.error('Error fetching character:', err);
-      setError('Failed to load character data');
-    } finally {
-      setLoading(false);
-    }
-  }, [calculateMaxHealth]);
-
   const updateCharacter = useCallback(async (updatedData) => {
     if (isUpdating) {
       setError('Please wait, character is being updated...');
@@ -77,85 +57,57 @@ const useCharacter = () => {
     setIsUpdating(true);
     setError(null);
 
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
+    try {
+      const { data } = await character.update(updatedData);
+      setCharacterData(data);
+    } catch (err) {
+      console.error('Error updating character:', err);
+      setError('Failed to update character data. Please try again.');
+    } finally {
+      setIsUpdating(false);
     }
-
-    updateTimeoutRef.current = setTimeout(async () => {
-      try {
-        const { data } = await character.update(updatedData);
-        const maxHealth = calculateMaxHealth(data);
-        setCharacterData({
-          ...data,
-          healthData: {
-            currentHealth: data.healthData.currentHealth,
-            maxHealth: maxHealth,
-            lastHealthUpdate: new Date().toISOString()
-          },
-          calculatedStats: {
-            ...data.calculatedStats,
-            healthRegenRate: maxHealth / data.fullRegenTime
-          }
-        });
-      } catch (err) {
-        console.error('Error updating character:', err);
-        if (err.response && err.response.status === 409) {
-          await fetchCharacter();
-          setError('Data conflict occurred. The latest data has been loaded.');
-        } else {
-          setError('Failed to update character data. Please try again.');
-        }
-      } finally {
-        setIsUpdating(false);
-      }
-    }, 500);
-  }, [calculateMaxHealth, fetchCharacter, isUpdating]);
+  }, [isUpdating]);
 
   const equipItem = useCallback(async (charItemId) => {
     try {
       setError(null);
       const { data } = await character.equipItem(charItemId);
-      const maxHealth = calculateMaxHealth(data);
-      setCharacterData({
-        ...data,
-        healthData: {
-          currentHealth: data.healthData.currentHealth,
-          maxHealth: maxHealth,
-          lastHealthUpdate: new Date().toISOString()
-        },
-        calculatedStats: {
-          ...data.calculatedStats,
-          healthRegenRate: maxHealth / data.fullRegenTime
-        }
-      });
+      setCharacterData(data);
       return { success: true };
     } catch (err) {
       console.error('Error equipping item:', err);
       setError('Failed to equip item');
       return { success: false, message: 'Failed to equip item' };
     }
-  }, [calculateMaxHealth]);
+  }, []);
 
-  const removeItem = useCallback(async (itemId) => {
+  const removeItem = useCallback(async (itemId, quantity) => {
     try {
-      await character.removeItem(itemId);
-      setCharacterData(prevData => ({
-        ...prevData,
-        inventory: prevData.inventory.filter(item => item._id !== itemId)
-      }));
+      console.log('Удаление предмета:', itemId, 'Количество:', quantity);
+      const { data } = await character.removeItem(itemId, quantity);
+      console.log('Ответ сервера после удаления:', data);
+      setCharacterData(prevData => {
+        const updatedInventory = prevData.inventory.map(item => {
+          if (item._id === itemId) {
+            const newQuantity = item.quantity - quantity;
+            if (newQuantity <= 0) {
+              return null;
+            }
+            return { ...item, quantity: newQuantity };
+          }
+          return item;
+        }).filter(Boolean);
+        console.log('Обновленный инвентарь в хуке:', updatedInventory);
+        return { ...prevData, inventory: updatedInventory };
+      });
     } catch (error) {
-      console.error('Error removing item:', error);
+      console.error('Ошибка удаления предмета:', error);
       throw error;
     }
   }, []);
 
   useEffect(() => {
     fetchCharacter();
-    return () => {
-      if (updateTimeoutRef.current) {
-        clearTimeout(updateTimeoutRef.current);
-      }
-    };
   }, [fetchCharacter]);
 
   useEffect(() => {

@@ -1,7 +1,8 @@
 // Собранный код для папки client_src_components
+// Внимание! Здесь собраны только нужные в работе файлы. Некоторые файлы связанные с конфигурацией, авторизацией, некоторые компоненты могли не попасть в эту сборку, если не относятся к решению задачи!
 
 // Код файла components\Admin\AdminGameItemForm.js:
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
@@ -9,13 +10,23 @@ import { APP_SERVER_URL } from '../../config/config';
 const InputField = ({ label, name, value, onChange, type = 'text' }) => (
   <div className="flex justify-between items-center mb-2">
     <label className="text-right pr-2 w-1/2">{label}:</label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="w-1/2 h-[25px] px-2 border rounded text-right"
-    />
+    {type === 'checkbox' ? (
+      <input
+        type="checkbox"
+        name={name}
+        checked={value}
+        onChange={onChange}
+        className="w-5 h-5"
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-1/2 h-[25px] px-2 border rounded text-right"
+      />
+    )}
   </div>
 );
 
@@ -89,17 +100,13 @@ const AdminGameItemForm = () => {
       healthRegenRate: 0,
       health: 0,
       counterAttack: 0
-    }
+    },
+    isStackable: false,
+    maxQuantity: 1,
   });
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (id) {
-      fetchGameItem();
-    }
-  }, [id]);
-
-  const fetchGameItem = async () => {
+  const fetchGameItem = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -121,11 +128,20 @@ const AdminGameItemForm = () => {
         navigate('/login');
       }
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (id) {
+      fetchGameItem();
+    }
+  }, [id, fetchGameItem]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setGameItem(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   const handleStatsChange = (e) => {
@@ -209,7 +225,22 @@ const AdminGameItemForm = () => {
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
             <InputField label="Изображение" name="image" value={gameItem.image} onChange={handleChange} />
-
+            <InputField
+              label="Складируемый"
+              name="isStackable"
+              value={gameItem.isStackable}
+              onChange={handleChange}
+              type="checkbox"
+            />
+            {gameItem.isStackable && (
+              <InputField
+                label="Макс. количество"
+                name="maxQuantity"
+                value={gameItem.maxQuantity}
+                onChange={handleChange}
+                type="number"
+              />
+            )}
             <textarea
               name="description"
               value={gameItem.description}
@@ -265,20 +296,18 @@ const AdminGameItemForm = () => {
 export default AdminGameItemForm;
 
 // Код файла components\Admin\AdminGameItemList.js:
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
+import FilterSortPanel from '../Interface/FilterSortPanel';
 
 const AdminGameItemList = () => {
   const navigate = useNavigate();
   const [gameItems, setGameItems] = useState([]);
+  const [filteredGameItems, setFilteredGameItems] = useState([]);
 
-  useEffect(() => {
-    fetchGameItems();
-  }, []);
-
-  const fetchGameItems = async () => {
+  const fetchGameItems = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -290,10 +319,16 @@ const AdminGameItemList = () => {
         headers: { Authorization: `Bearer ${token}` }
       });
       setGameItems(response.data);
+      setFilteredGameItems(response.data);
     } catch (error) {
       console.error('Error fetching game items:', error.response?.data || error.message);
     }
-  };
+  }, [navigate]);
+
+
+  useEffect(() => {
+    fetchGameItems();
+  }, [fetchGameItems]);
 
   const handleDelete = async (gameItemId) => {
     if (window.confirm('Are you sure you want to delete this game item?')) {
@@ -308,14 +343,15 @@ const AdminGameItemList = () => {
       }
     }
   };
-  
+
   const handleSendGameItem = async (gameItemId) => {
     const characterId = prompt("Enter the character ID to send the game item to:");
-    if (characterId) {
+    const quantity = prompt("Enter the quantity to send:");
+    if (characterId && quantity) {
       try {
         const token = localStorage.getItem('token');
-        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`, 
-          {},
+        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`,
+          { quantity: parseInt(quantity, 10) },
           { headers: { Authorization: `Bearer ${token}` } }
         );
         alert('Game item sent successfully');
@@ -334,6 +370,11 @@ const AdminGameItemList = () => {
           Create New
         </Link>
       </div>
+      <FilterSortPanel
+        items={gameItems}
+        onFilterSort={setFilteredGameItems}
+        itemType="gameItem"
+      />
       <div className="bg-white shadow-md rounded-lg overflow-hidden">
         <table className="min-w-full divide-y divide-gray-200">
           <thead className="bg-gray-50">
@@ -346,7 +387,7 @@ const AdminGameItemList = () => {
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
-            {gameItems.map((gameItem) => (
+            {filteredGameItems.map((gameItem) => (
               <tr key={gameItem._id}>
                 <td className="px-6 py-4 whitespace-nowrap">
                   <div className="flex items-center">
@@ -410,272 +451,50 @@ const AdminPanel = () => {
 
 export default AdminPanel;
 
-// Код файла components\Auth\Login.js:
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
-import { APP_SERVER_URL } from '../../config/config';
-
-const Login = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(''); // Сбрасываем ошибку перед новой попыткой
-    try {
-      const response = await axios.post(`${APP_SERVER_URL}/api/auth/login`, { username, password });
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));      
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Ошибка входа:', error);
-      setError(error.response?.data?.message || 'Произошла ошибка при входе');
-    }
-  };
-
-  return (
-    <div>
-      <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">Вход</h2>
-      {error && <div className="mt-2 text-center text-sm text-red-600">{error}</div>}
-      <form className="space-y-6" onSubmit={handleSubmit}>
-        <div>
-          <label htmlFor="username" className="block text-sm font-medium text-gray-700">Имя пользователя</label>
-          <div className="mt-1">
-            <input
-              id="username"
-              name="username"
-              type="text"
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700">Пароль</label>
-          <div className="mt-1">
-            <input
-              id="password"
-              name="password"
-              type="password"
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-            />
-          </div>
-        </div>
-        <div>
-          <button
-            type="submit"
-            className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
-          >
-            Войти
-          </button>
-        </div>
-      </form>
-      <div className="mt-6">
-        <Link
-          to="/register"
-          className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-indigo-600 bg-indigo-100 hover:bg-indigo-200"
-        >
-          Нет аккаунта? Зарегистрироваться
-        </Link>
-      </div>
-    </div>
-  );
-};
-
-export default Login;
-
-
-// Код файла components\Auth\Register.js:
-import React, { useState } from 'react';
-import axios from 'axios';
-import { useNavigate, Link } from 'react-router-dom';
-import { APP_SERVER_URL } from '../../config/config';
-
-const Register = () => {
-  const [username, setUsername] = useState('');
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const navigate = useNavigate();
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError('');
-    try {
-      console.log('Attempting to register user:', username);
-      const response = await axios.post(`${APP_SERVER_URL}/api/auth/register`, { username, email, password });
-      console.log('Registration response:', response.data);
-      
-      if (response.data.token) {
-        localStorage.setItem('token', response.data.token);
-        console.log('Token saved to localStorage');
-        navigate('/dashboard');
-      } else {
-        console.error('No token received after registration');
-        setError('Registration failed: No token received');
-      }
-    } catch (error) {
-      console.error('Registration error:', error.response?.data?.message || error.message);
-      setError(error.response?.data?.message || 'An error occurred during registration');
-    }
-  };
-
-  return (
-    <div className="max-w-md mx-auto mt-8">
-      <div className="bg-white py-8 px-4 shadow sm:rounded-lg sm:px-10">
-        <h2 className="text-3xl font-extrabold text-gray-900 text-center mb-6">Регистрация</h2>
-        {error && <div className="text-red-600 mb-4">{error}</div>}
-        <form onSubmit={handleSubmit} className="space-y-6">
-          <div>
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">Имя пользователя</label>
-            <input
-              id="username"
-              name="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium text-gray-700">Email</label>
-            <input
-              id="email"
-              name="email"
-              type="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">Пароль</label>
-            <input
-              id="password"
-              name="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="appearance-none block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm"
-            />
-          </div>
-          <div>
-            <button
-              type="submit"
-              className="w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-              Зарегистрироваться
-            </button>
-          </div>
-        </form>
-        <div className="mt-4 text-sm text-center text-gray-600">
-          Уже есть аккаунт?{' '}
-          <Link to="/login" className="text-indigo-600 hover:text-indigo-800">
-            Войти
-          </Link>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-export default Register;
-
-
 // Код файла components\Character\Character.js:
-// ВАЖНО: Порядок и структура div элементов в этом файле критически важны для вёрстки.
-// НЕ ИЗМЕНЯЙТЕ порядок или структуру div элементов без крайней необходимости.
-// Любые изменения могут нарушить макет персонажа.
-
-import React, { useState, useCallback } from 'react';
+import React, { useState } from 'react';
 import CharItemInfo from '../Inventory/CharItemInfo';
-import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
 import CharacterStatus from './CharacterStatus';
+import EquipmentSlot from './EquipmentSlot';
+import HealthBar from './HealthBar';
+import CharacterSilhouette from './CharacterSilhouette';
 
-const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
-  const [pressTimer, setPressTimer] = useState(null);
-
-  const handleMouseDown = useCallback(() => {
-    setPressTimer(setTimeout(() => {
-      if (item) {
-        onShowInfo(item);
-      }
-    }, 1000));
-  }, [item, onShowInfo]);
-
-  const handleMouseUp = () => {
-    clearTimeout(pressTimer);
-  };
-
-  const handleClick = () => {
-    if (item) {
-      onUnequip(item._id);
-    }
-  };
-
-  return (
-    <div 
-      className="w-full h-full flex items-center justify-center cursor-pointer"
-      style={item ? getEquippedCharItemStyle(item.gameItem.rarity) : {}}
-      onClick={handleClick}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchStart={handleMouseDown}
-      onTouchEnd={handleMouseUp}
-    >
-      {item ? (
-        <div className="w-full h-full relative">
-          <img 
-            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`} 
-            alt={item.gameItem.name} 
-            className="w-full h-full object-cover"
-          />
-          <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
-            <div className="text-white text-xs font-bold bg-gray-800 bg-opacity-75 px-1 py-0.5 rounded">
-              {item.gameItem.name}
-            </div>
-          </div>
-        </div>
-      ) : (
-        <img 
-          src={`https://placehold.co/60x60?text=${slot}`} 
-          alt={slot} 
-          className="w-full h-full object-cover"
-        />
-      )}
-    </div>
-  );
-};
-
-const Character = ({ character, onUnequipItem }) => {
+const Character = ({ character, onUnequipItem, onDeleteItem }) => {
   const [selectedItem, setSelectedItem] = useState(null);
 
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const currentHealth = Math.round(character.healthData.currentHealth);
-  const maxHealth = character.healthData.maxHealth;
-
-  const handleShowInfo = (item) => {
-    setSelectedItem(item);
+  const handleShowInfo = (charItem) => {
+    setSelectedItem(charItem);
   };
 
-  const getEquippedItem = (slot) => {
+  const getEquippedCharItem = (slot) => {
     return character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
   };
+
+  const equipmentSlots = [
+    { slot: 'banner', col: '1', row: '2' },
+    { slot: 'helmet', col: '10', row: '2' },
+    { slot: 'weapon', col: '1', row: '5' },
+    { slot: 'shield', col: '10', row: '5' },
+    { slot: 'armor', col: '1', row: '8' },
+    { slot: 'cloak', col: '10', row: '8' },
+    { slot: 'belt', col: '1', row: '11' },
+    { slot: 'boots', col: '10', row: '11' },
+  ];
+
+  const usefulSlots = ['useful1', 'useful2', 'useful3'];
+
+  const skillSlots = [
+    { col: '1', row: '16', text: 'Skill 1' },
+    { col: '3', row: '16', text: 'Skill 2' },
+    { col: '5', row: '16', text: 'Skill 3' },
+    { col: '7', row: '16', text: 'Skill 4' },
+    { col: '9', row: '16', text: 'Skill 5' },
+    { col: '11', row: '16', text: 'Skill 6' },
+  ];
 
   return (
     <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
@@ -686,10 +505,10 @@ const Character = ({ character, onUnequipItem }) => {
             {character.level}
           </span>
           <span className="ml-2 bg-gray-300 text-gray-800 rounded-md px-2 py-1 text-xs">
-          <CharacterStatus character={character} />
+            <CharacterStatus character={character} />
           </span>
         </div>
-        
+
         <div className="col-span-6 col-start-4 row-start-2 bg-yellow-200 rounded-md overflow-hidden relative h-6">
           <div
             className="h-full bg-yellow-400 absolute left-0 top-0"
@@ -699,74 +518,38 @@ const Character = ({ character, onUnequipItem }) => {
             EXP: {character.experience}/100
           </div>
         </div>
-        
-        <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
-          <div
-            className="h-full bg-red-500 absolute left-0 top-0"
-            style={{ width: `${(currentHealth / maxHealth) * 100}%` }}
-          />
-          <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
-            HP: {currentHealth}/{maxHealth}
+
+        <HealthBar currentHealth={character.healthData.currentHealth} maxHealth={character.healthData.maxHealth} />
+
+        <CharacterSilhouette character={character} />
+
+        {equipmentSlots.map(({ slot, col, row }) => (
+          <div key={slot} className={`col-span-3 row-span-3 col-start-${col} row-start-${row} bg-white rounded-md flex items-center justify-center overflow-hidden`}>
+            <EquipmentSlot
+              slot={slot}
+              item={getEquippedCharItem(slot)}
+              onUnequip={onUnequipItem}
+              onShowInfo={handleShowInfo}
+            />
           </div>
-        </div>
+        ))}
 
-        <div className="col-span-6 row-span-8 col-start-4 row-start-4 bg-gray-300 rounded-md flex items-center justify-center">
-          <img src="https://placehold.co/200x300?text=Character" alt="Character Silhouette" className="w-full h-full object-cover rounded-md" />
-        </div>
+        {usefulSlots.map((slot, index) => (
+          <div key={slot} className={`col-span-2 row-span-2 col-start-${4 + index * 2} row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden`}>
+            <EquipmentSlot
+              slot={slot}
+              item={getEquippedCharItem(slot)}
+              onUnequip={onUnequipItem}
+              onShowInfo={handleShowInfo}
+            />
+          </div>
+        ))}
 
-        <div className="col-span-3 row-span-3 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="banner" item={getEquippedItem('banner')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 col-start-10 row-start-2 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="helmet" item={getEquippedItem('helmet')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="weapon" item={getEquippedItem('weapon')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 col-start-10 row-start-5 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="shield" item={getEquippedItem('shield')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="armor" item={getEquippedItem('armor')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 col-start-10 row-start-8 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="cloak" item={getEquippedItem('cloak')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="belt" item={getEquippedItem('belt')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-3 row-span-3 col-start-10 row-start-11 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="boots" item={getEquippedItem('boots')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-
-        <div className="col-span-2 row-span-2 col-start-4 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="useful1" item={getEquippedItem('useful1')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-6 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="useful2" item={getEquippedItem('useful2')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-8 row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <EquipmentSlot slot="useful3" item={getEquippedItem('useful3')} onUnequip={onUnequipItem} onShowInfo={handleShowInfo} />
-        </div>
-
-        <div className="col-span-2 row-span-2 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+1" alt="Skill 1" className="w-full h-full object-cover" />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-3 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+2" alt="Skill 2" className="w-full h-full object-cover" />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-5 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+3" alt="Skill 3" className="w-full h-full object-cover" />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-7 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+4" alt="Skill 4" className="w-full h-full object-cover" />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-9 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+5" alt="Skill 5" className="w-full h-full object-cover" />
-        </div>
-        <div className="col-span-2 row-span-2 col-start-11 row-start-16 bg-white rounded-md flex items-center justify-center overflow-hidden">
-          <img src="https://placehold.co/40x40?text=Skill+6" alt="Skill 6" className="w-full h-full object-cover" />
-        </div>
+        {skillSlots.map(({ col, row, text }, index) => (
+          <div key={index} className={`col-span-2 row-span-2 col-start-${col} row-start-${row} bg-white rounded-md flex items-center justify-center overflow-hidden`}>
+            <img src={`https://placehold.co/40x40?text=${text}`} alt={text} className="w-full h-full object-cover" />
+          </div>
+        ))}
 
         <div className="col-span-3 row-span-1 col-start-1 row-start-17 bg-yellow-300 rounded-md flex items-center justify-center overflow-hidden">
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
@@ -774,11 +557,12 @@ const Character = ({ character, onUnequipItem }) => {
       </div>
       {selectedItem && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <CharItemInfo 
-            charItem={selectedItem} 
-            onClose={() => setSelectedItem(null)} 
+          <CharItemInfo
+            charItem={selectedItem}
+            onClose={() => setSelectedItem(null)}
             character={character}
             onEquipItem={onUnequipItem}
+            onDeleteItem={onDeleteItem}
           />
         </div>
       )}
@@ -787,95 +571,6 @@ const Character = ({ character, onUnequipItem }) => {
 };
 
 export default Character;
-
-// Код файла components\Character\CharacterCreate.js:
-import React, { useState } from 'react';
-import axios from 'axios';
-import { APP_SERVER_URL } from '../../config/config';
-
-const CharacterCreate = ({ onCharacterCreated }) => {
-  const [nickname, setNickname] = useState('');
-  const [characterClass, setCharacterClass] = useState('Warrior');
-  const [baseStrength, setBaseStrength] = useState(10);
-  const [baseDexterity, setBaseDexterity] = useState(10);
-  const [baseIntelligence, setBaseIntelligence] = useState(10);
-  const [baseEndurance, setBaseEndurance] = useState(10);
-  const [baseCharisma, setBaseCharisma] = useState(10);
-  const [availablePoints, setAvailablePoints] = useState(5);
-
-  const handleStatChange = (stat, value) => {
-    if (availablePoints > 0 || value < 0) {
-      const statSetters = {
-        baseStrength: setBaseStrength,
-        baseDexterity: setBaseDexterity,
-        baseIntelligence: setBaseIntelligence,
-        baseEndurance: setBaseEndurance,
-        baseCharisma: setBaseCharisma
-      };
-
-      const currentValue = {
-        baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma
-      }[stat];
-
-      if (statSetters[stat]) {
-        statSetters[stat](Math.max(10, currentValue + value));
-        setAvailablePoints(prev => prev - value);
-      }
-    }
-  };
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${APP_SERVER_URL}/api/character`,
-        { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      onCharacterCreated(response.data);
-    } catch (error) {
-      console.error('Error creating character:', error);
-    }
-  };
-
-  return (
-    <div className="max-w-md mx-auto bg-white p-6 rounded-lg shadow-md">
-      <h2 className="text-2xl font-bold mb-4">Create Character</h2>
-      <form onSubmit={handleSubmit}>
-        <input
-          type="text"
-          placeholder="Character Nickname"
-          value={nickname}
-          onChange={(e) => setNickname(e.target.value)}
-          className="w-full p-2 mb-4 border rounded"
-          required
-        />
-        <select
-          value={characterClass}
-          onChange={(e) => setCharacterClass(e.target.value)}
-          className="w-full p-2 mb-4 border rounded"
-        >
-          <option value="Warrior">Warrior</option>
-          <option value="Mage">Mage</option>
-          <option value="Archer">Archer</option>
-        </select>
-        <p className="mb-2">Available points: {availablePoints}</p>
-        {['baseStrength', 'baseDexterity', 'baseIntelligence', 'baseEndurance', 'baseCharisma'].map((stat) => (
-          <div key={stat} className="flex justify-between items-center mb-2">
-            <span className="capitalize">{stat.replace('base', '')}: {eval(stat)}</span>
-            <div>
-              <button type="button" onClick={() => handleStatChange(stat, -1)} className="px-2 py-1 bg-red-500 text-white rounded mr-2" disabled={eval(stat) <= 10}>-</button>
-              <button type="button" onClick={() => handleStatChange(stat, 1)} className="px-2 py-1 bg-green-500 text-white rounded" disabled={availablePoints <= 0}>+</button>
-            </div>
-          </div>
-        ))}
-        <button type="submit" className="w-full p-2 bg-blue-500 text-white rounded hover:bg-blue-600">Create Character</button>
-      </form>
-    </div>
-  );
-};
-
-export default CharacterCreate;
 
 // Код файла components\Character\CharacterStats.js:
 import React from 'react';
@@ -984,64 +679,94 @@ const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => 
 
 export default CharacterStats;
 
-// Код файла components\Character\CharacterStatus.js:
-import React, { useState } from 'react';
-import useCharacterStatus from '../../hooks/useCharacterStatus';
-import { FaStar } from 'react-icons/fa';
+// Код файла components\Character\EquipmentSlot.js:
+import React, { useState, useCallback, useEffect } from 'react';
+import { getEquippedCharItemStyle } from '../../utils/charItemUtils';
 
-const CharacterStatus = ({ initialStatus }) => {
-  const { status, updateStatus } = useCharacterStatus(initialStatus);
-  const [isPopupOpen, setIsPopupOpen] = useState(false);
+const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
+  const [pressTimer, setPressTimer] = useState(null);
 
-  const displayStatus = status.auto || status.user;
+  const handleMouseDown = useCallback(() => {
+    setPressTimer(setTimeout(() => {
+      if (item) {
+        onShowInfo(item);
+      }
+    }, 1000));
+  }, [item, onShowInfo]);
 
-  const handleStatusChange = (newStatus) => {
-    updateStatus(newStatus);
-    setIsPopupOpen(false);
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
   };
 
+  const handleClick = () => {
+    if (item) {
+      onUnequip(item._id);
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (pressTimer) clearTimeout(pressTimer);
+    };
+  }, [pressTimer]);
+
   return (
-    <div className="relative">
-      <span className="bg-gray-300 text-gray-800 rounded-md py-1 text-xs cursor-pointer" onClick={() => setIsPopupOpen(!isPopupOpen)}>
-        <FaStar className="inline-block mr-1" />
-        {displayStatus}
-      </span>
-      {isPopupOpen && !status.auto && (
-        <div className="absolute z-10 mt-2 w-48 rounded-md shadow-lg bg-white ring-1 ring-black ring-opacity-5">
-          <div className="py-1" role="menu" aria-orientation="vertical" aria-labelledby="options-menu">
-            <button
-              onClick={() => handleStatusChange('idle')}
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left"
-              role="menuitem"
-            >
-              Idle
-            </button>
-            <button
-              onClick={() => handleStatusChange('resting')}
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left"
-              role="menuitem"
-            >
-              Resting
-            </button>
-            <button
-              onClick={() => handleStatusChange('looking_for_battle')}
-              className="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 hover:text-gray-900 w-full text-left"
-              role="menuitem"
-            >
-              Looking for Battle
-            </button>
+    <div
+      className="w-full h-full flex items-center justify-center cursor-pointer"
+      style={item ? getEquippedCharItemStyle(item.gameItem.rarity) : {}}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
+    >
+      {item ? (
+        <div className="w-full h-full relative">
+          <img
+            src={item.gameItem.image || `https://placehold.co/60x60?text=${slot}`}
+            alt={item.gameItem.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-black bg-opacity-30 flex items-center justify-center">
+            <div className="text-white text-xs font-bold bg-gray-800 bg-opacity-75 px-1 py-0.5 rounded">
+              {item.gameItem.name}
+            </div>
           </div>
         </div>
+      ) : (
+        <img
+          src={`https://placehold.co/60x60?text=${slot}`}
+          alt={slot}
+          className="w-full h-full object-cover"
+        />
       )}
     </div>
   );
 };
 
-export default CharacterStatus;
+export default EquipmentSlot;
 
-// Код файла components\Character\LevelUp.js:
- 
+// Код файла components\Character\HealthBar.js:
+import React from 'react';
 
+const HealthBar = ({ currentHealth, maxHealth }) => {
+  const healthPercentage = (currentHealth / maxHealth) * 100;
+
+  return (
+    <div className="col-span-6 col-start-4 row-start-3 bg-red-200 rounded-md overflow-hidden relative h-6">
+      <div
+        className="h-full bg-red-500 absolute left-0 top-0"
+        style={{ width: `${healthPercentage}%` }}
+      />
+      <div className="absolute inset-0 flex items-center justify-center text-xs font-bold text-white">
+        HP: {Math.round(currentHealth)}/{maxHealth}
+      </div>
+    </div>
+  );
+};
+
+export default HealthBar;
 
 // Код файла components\Combat\BattleArena.js:
  
@@ -1061,6 +786,7 @@ import Inventory from '../Inventory/Inventory';
 import Skills from '../Skills/Skills';
 import useAuth from '../../hooks/useAuth';
 import useCharacter from '../../hooks/useCharacter';
+import Header from '../Interface/Header';
 
 const Tab = ({ label, active, onClick }) => (
   <button
@@ -1083,7 +809,7 @@ const Dashboard = () => {
   const [activeTab, setActiveTab] = useState('characterstats');
   const [equipError, setEquipError] = useState('');
   const navigate = useNavigate();
-  const { user, loading: authLoading, logout } = useAuth();
+  const { user, loading: authLoading } = useAuth();
   const {
     character,
     loading: characterLoading,
@@ -1091,7 +817,8 @@ const Dashboard = () => {
     isUpdating,
     updateCharacter,
     equipItem,
-    fetchCharacter
+    fetchCharacter,
+    removeItem
   } = useCharacter();
 
   if (authLoading || characterLoading) {
@@ -1107,37 +834,42 @@ const Dashboard = () => {
     await updateCharacter(updatedCharacter);
   };
 
-  const canEquipItem = (item) => {
-    if (!item || !item.gameItem) return false;
-    if (character.level < item.gameItem.minLevel) return false;
-    if (item.gameItem.requiredClass.length && !item.gameItem.requiredClass.includes(character.class)) return false;
-    for (const [stat, value] of Object.entries(item.gameItem.requiredStats)) {
+  const canEquipItem = (charItem) => {
+    if (!charItem || !charItem.gameItem) return false;
+    if (character.level < charItem.gameItem.minLevel) return false;
+    if (charItem.gameItem.requiredClass.length && !charItem.gameItem.requiredClass.includes(character.class)) return false;
+    for (const [stat, value] of Object.entries(charItem.gameItem.requiredStats)) {
       if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
     }
     return true;
   };
 
-  const handleEquipItem = async (itemId) => {
-    const item = character.inventory.find(i => i._id === itemId);
-    if (item.isEquipped || canEquipItem(item)) {
-      const result = await equipItem(itemId);
+  const handleEquipItem = async (charItemId) => {
+    const charItem = character.inventory.find(i => i._id === charItemId);
+    if (charItem.isEquipped || canEquipItem(charItem)) {
+      const result = await equipItem(charItemId);
       setEquipError(result.success ? '' : result.message);
     } else {
       setEquipError('Не выполнены минимальные требования для надевания этого предмета.');
     }
   };
 
-  const handleUnequipItem = async (itemId) => {
-    await equipItem(itemId); // Используем ту же функцию, что и для экипировки
+  const handleUnequipItem = async (charItemId) => {
+    await equipItem(charItemId);
+  };
+
+  const handleDeleteItem = async (charItemId) => {
+    try {
+      await removeItem(charItemId);
+      setEquipError('');
+    } catch (error) {
+      console.error('Ошибка удаления предмета:', error);
+      setEquipError('Ошибка удаления предмета. Пожалуйста, попробуйте еще раз.');
+    }
   };
 
   const handleCharacterCreated = () => {
     fetchCharacter();
-  };
-
-  const handleLogout = () => {
-    logout();
-    navigate('/login');
   };
 
   const renderContent = () => {
@@ -1155,6 +887,7 @@ const Dashboard = () => {
         <Character
           character={character}
           onUnequipItem={handleUnequipItem}
+          onDeleteItem={handleDeleteItem}
         />
         <div className="w-full max-w-3xl mx-auto bg-gray-100 p-2 rounded-lg shadow-md">
           <Tab label="Характеристики" active={activeTab === 'characterstats'} onClick={() => setActiveTab('characterstats')} />
@@ -1187,15 +920,7 @@ const Dashboard = () => {
 
   return (
     <div className="max-w-4xl mx-auto bg-white p-4 rounded-lg shadow-lg">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Добро пожаловать, {user.username}!</h1>
-        <button
-          onClick={handleLogout}
-          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
-        >
-          Выйти
-        </button>
-      </div>
+      <Header />
 
       {error && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
@@ -1211,191 +936,10 @@ const Dashboard = () => {
 
 export default Dashboard;
 
-// Код файла components\Inventory\CharItemInfo.js:
-import React, { useState, useEffect } from 'react';
-import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+// Код файла components\Interface\FilterSortPanel.js:
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 
-const CharItemInfo = ({ charItem, onClose, character, onEquipItem }) => {
-  const [isEquipped, setIsEquipped] = useState(charItem.isEquipped);
-
-  useEffect(() => {
-    setIsEquipped(charItem.isEquipped);
-  }, [charItem.isEquipped]);
-
-  if (!charItem || !charItem.gameItem) return null;
-
-  const { gameItem } = charItem;
-  const itemStyle = isEquipped ? getEquippedCharItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
-
-  const isStatInsufficient = (stat, requiredValue) => {
-    const characterStat = character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`];
-    return characterStat < requiredValue;
-  };
-
-  const rarityColors = {
-    common: 'bg-gray-500',
-    uncommon: 'bg-green-600',
-    rare: 'bg-blue-600',
-    epic: 'bg-purple-600',
-    legendary: 'bg-orange-500'
-  };
-
-  const canEquipItem = () => {
-    if (character.level < gameItem.minLevel) return false;
-    if (gameItem.requiredClass.length && !gameItem.requiredClass.includes(character.class)) return false;
-    for (const [stat, value] of Object.entries(gameItem.requiredStats)) {
-      if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
-    }
-    return true;
-  };
-
-  const handleEquipToggle = async () => {
-    await onEquipItem(charItem._id);
-    setIsEquipped(!isEquipped);
-  };
-
-  return (
-    <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
-      <div className={`relative p-6 ${rarityColors[gameItem.rarity]} text-white`}>
-        <h2 className="text-2xl font-bold mb-2">{gameItem.name}</h2>
-        <p className="text-white opacity-90">{gameItem.type} - {gameItem.rarity.charAt(0).toUpperCase() + gameItem.rarity.slice(1)}</p>
-        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-200">
-          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-          </svg>
-        </button>
-      </div>
-      <div className="p-6 bg-gray-50">
-        <div className="flex mb-4">
-          <div className="w-24 h-24 mr-4 rounded-lg shadow overflow-hidden" style={itemStyle}>
-            <img src={gameItem.image || "https://placehold.co/100x100?text=No+Image"} alt={gameItem.name} className="w-full h-full object-cover" />
-          </div>
-          <div>
-            <p className="mb-1">
-              <span className="font-semibold">Мин. уровень:</span> 
-              <span className={character.level < gameItem.minLevel ? "text-red-500 font-bold" : ""}> {gameItem.minLevel}</span>
-            </p>
-            <p className="mb-1">
-              <span className="font-semibold">Класс:</span> 
-              <span className={!gameItem.requiredClass.includes(character.class) ? "text-red-500 font-bold" : ""}> {gameItem.requiredClass.join(', ')}</span>
-            </p>
-          </div>
-        </div>
-                {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
-          <div className="mb-4 p-3 bg-white rounded shadow">
-            <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
-            <div className="grid grid-cols-2 gap-2">
-              {Object.entries(gameItem.requiredStats).map(([stat, value]) => (
-                value > 0 && (
-                  <p key={stat} className={isStatInsufficient(stat, value) ? "text-red-500 font-bold" : ""}>
-                    <strong>{stat}:</strong> {value}
-                  </p>
-                )
-              ))}
-            </div>
-          </div>
-        )}
-        <div className="mb-4 p-3 bg-white rounded shadow">
-          <h3 className="font-bold mb-2">Бонусы:</h3>
-          <div className="grid grid-cols-2 gap-2">
-            {Object.entries(gameItem.stats).map(([stat, value]) => (
-              value !== 0 && <p key={stat}><strong>{stat}:</strong> {value > 0 ? '+' : ''}{value}</p>
-            ))}
-          </div>
-        </div>
-        {gameItem.description && (
-          <p className="text-sm italic text-gray-600 mt-4">{gameItem.description}</p>
-        )}
-        {isEquipped ? (
-          <p className="mt-4 text-green-600 font-bold">Экипировано</p>
-        ) : null}
-        <button
-          onClick={handleEquipToggle}
-          className={`mt-4 px-4 py-2 rounded ${
-            canEquipItem() || isEquipped
-              ? 'bg-blue-500 hover:bg-blue-600 text-white'
-              : 'bg-gray-300 text-gray-500 cursor-not-allowed'
-          }`}
-          disabled={!canEquipItem() && !isEquipped}
-        >
-          {isEquipped ? 'Снять' : 'Надеть'}
-        </button>
-      </div>
-    </div>
-  );
-};
-
-export default CharItemInfo;
-
-// Код файла components\Inventory\Inventory.js:
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import CharItemInfo from './CharItemInfo';
-import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
-
-const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
-  const [pressTimer, setPressTimer] = useState(null);
-
-  const handleMouseDown = useCallback(() => {
-    setPressTimer(setTimeout(() => {
-      if (inventoryItem) {
-        onShowInfo(inventoryItem);
-      }
-    }, 1000));
-  }, [inventoryItem, onShowInfo]);
-
-  const handleMouseUp = () => {
-    clearTimeout(pressTimer);
-  };
-
-  const handleClick = () => {
-    if (inventoryItem) {
-      if (canEquipItem(inventoryItem)) {
-        onClickInventoryItem(inventoryItem._id);
-      } else {
-        onShowInfo(inventoryItem);
-      }
-    }
-  };
-
-  useEffect(() => {
-    return () => {
-      if (pressTimer) clearTimeout(pressTimer);
-    };
-  }, [pressTimer]);
-
-  if (!inventoryItem) return null;
-
-  const itemStyle = inventoryItem.isEquipped
-    ? getEquippedCharItemStyle(inventoryItem.gameItem.rarity)
-    : getCharItemStyle(inventoryItem.gameItem.rarity);
-
-  return (
-    <div
-      className={`aspect-square rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-opacity-80 overflow-hidden relative bg-cover bg-center`}
-      style={{
-        ...itemStyle,
-        backgroundImage: `url(${inventoryItem.gameItem.image || "https://placehold.co/100"})`
-      }}
-      onClick={handleClick}
-      onMouseDown={handleMouseDown}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseUp}
-      onTouchStart={handleMouseDown}
-      onTouchEnd={handleMouseUp}
-    >
-      <div className="absolute inset-0 bg-black bg-opacity-30"></div>
-      <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
-        <div className="font-bold truncate w-full">{inventoryItem.gameItem.name}</div>
-        <div>x{inventoryItem.quantity}</div>
-      </div>
-
-    </div>
-  );
-};
-
-const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, character }) => {
-  const [filteredInventory, setFilteredInventory] = useState([]);
-  const [selectedItem, setSelectedItem] = useState(null);
+const FilterSortPanel = ({ items, onFilterSort, itemType }) => {
   const [filterCategory, setFilterCategory] = useState('none');
   const [filterValue, setFilterValue] = useState('all');
   const [sortBy, setSortBy] = useState('none');
@@ -1437,55 +981,79 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
     ],
   }), []);
 
-  const sortOptions = useMemo(() => [
-    { value: 'none', label: 'Без сортировки' },
-    { value: 'level', label: 'По уровню' },
-    { value: 'rarity', label: 'По редкости' },
-  ], []);
+  const sortOptions = useMemo(() => {
+    const options = [
+      { value: 'none', label: 'Без сортировки' },
+      { value: 'rarity', label: 'По редкости' },
+    ];
 
-  useEffect(() => {
-    filterAndSortInventory();
-  }, [inventory, filterCategory, filterValue, sortBy, sortOrder]);
+    if (itemType === 'inventory') {
+      options.push({ value: 'level', label: 'По уровню' });
+    } else if (itemType === 'gameItem') {
+      options.push(
+        { value: 'name', label: 'По имени' },
+        { value: 'type', label: 'По типу' },
+        { value: 'minLevel', label: 'По мин. уровню' }
+      );
+    }
 
-  const filterAndSortInventory = useCallback(() => {
-    let filtered = [...inventory];
+    return options;
+  }, [itemType]);
 
-    // Apply filter
+  const filterAndSortItems = useCallback(() => {
+    let result = [...items];
+
+    // Применяем фильтр
     if (filterCategory !== 'none' && filterValue !== 'all') {
-      filtered = filtered.filter(item => {
+      result = result.filter(item => {
+        const gameItem = itemType === 'inventory' ? item.gameItem : item;
         switch (filterCategory) {
           case 'type':
-            return item.gameItem?.type === filterValue;
+            return gameItem.type === filterValue;
           case 'rarity':
-            return item.gameItem?.rarity === filterValue;
+            return gameItem.rarity === filterValue;
           case 'class':
-            return item.gameItem?.requiredClass.includes(filterValue);
+            return gameItem.requiredClass.includes(filterValue);
           default:
             return true;
         }
       });
     }
 
-    // Apply sorting
-    const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+    // Применяем сортировку
     if (sortBy !== 'none') {
-      filtered.sort((a, b) => {
+      const rarityOrder = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
+      result.sort((a, b) => {
+        const gameItemA = itemType === 'inventory' ? a.gameItem : a;
+        const gameItemB = itemType === 'inventory' ? b.gameItem : b;
         let comparison = 0;
-        if (sortBy === 'level') {
-          comparison = a.gameItem.minLevel - b.gameItem.minLevel;
-        } else if (sortBy === 'rarity') {
-          comparison = rarityOrder.indexOf(a.gameItem.rarity) - rarityOrder.indexOf(b.gameItem.rarity);
+        switch (sortBy) {
+          case 'name':
+            comparison = gameItemA.name.localeCompare(gameItemB.name);
+            break;
+          case 'type':
+            comparison = gameItemA.type.localeCompare(gameItemB.type);
+            break;
+          case 'rarity':
+            comparison = rarityOrder.indexOf(gameItemA.rarity) - rarityOrder.indexOf(gameItemB.rarity);
+            break;
+          case 'level':
+          case 'minLevel':
+            comparison = gameItemA.minLevel - gameItemB.minLevel;
+            break;
+          default:
+            comparison = 0;
         }
         return sortOrder === 'asc' ? comparison : -comparison;
       });
     }
 
-    setFilteredInventory(filtered);
-  }, [inventory, filterCategory, filterValue, sortBy, sortOrder]);
+    onFilterSort(result);
+  }, [items, filterCategory, filterValue, sortBy, sortOrder, itemType, onFilterSort]);
 
-  const handleShowInfo = (item) => {
-    setSelectedItem(item);
-  };
+  useEffect(() => {
+    filterAndSortItems();
+  }, [filterAndSortItems]);
 
   const renderDropdown = (label, value, onChange, options) => (
     <div className="mb-2 mr-2">
@@ -1503,37 +1071,388 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
   );
 
   return (
-    <div>
-      <div className="mb-4 flex flex-wrap items-center">
-        {renderDropdown('Фильтр', filterCategory, setFilterCategory, filterCategories)}
-        {filterCategory !== 'none' && renderDropdown('Значение', filterValue, setFilterValue, filterOptions[filterCategory])}
-        {renderDropdown('Сортировка', sortBy, setSortBy, sortOptions)}
-        {sortBy !== 'none' && (
+    <div className="mb-4 flex flex-wrap items-center">
+      {renderDropdown('Фильтр', filterCategory, setFilterCategory, filterCategories)}
+      {filterCategory !== 'none' && renderDropdown('Значение', filterValue, setFilterValue, filterOptions[filterCategory] || [])}
+      {renderDropdown('Сортировка', sortBy, setSortBy, sortOptions)}
+      {sortBy !== 'none' && (
+        <button
+          onClick={() => setSortOrder(prev => prev === 'asc' ? 'desc' : 'asc')}
+          className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+        >
+          {sortOrder === 'asc' ? '↑' : '↓'}
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default FilterSortPanel;
+
+// Код файла components\Interface\Header.js:
+import React from 'react';
+import { useNavigate } from 'react-router-dom';
+import useAuth from '../../hooks/useAuth';
+
+const Header = () => {
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
+
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
+  };
+
+  return (
+    <div className="flex justify-between items-center mb-4">
+      <h1 className="text-2xl font-bold">
+        {user ? `Добро пожаловать, ${user.username}!` : 'Добро пожаловать!'}
+      </h1>
+      {user && (
+        <button
+          onClick={handleLogout}
+          className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded transition-colors duration-200"
+        >
+          Выйти
+        </button>
+      )}
+    </div>
+  );
+};
+
+export default Header;
+
+// Код файла components\Inventory\CharItemInfo.js:
+import React, { useState, useEffect } from 'react';
+import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import { charItem } from '../../services/api';
+
+const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipItem, onDeleteItem }) => {
+  const [isEquipped, setIsEquipped] = useState(initialCharItem.isEquipped);
+  const [deleteQuantity, setDeleteQuantity] = useState(1);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+
+  useEffect(() => {
+    setIsEquipped(initialCharItem.isEquipped);
+  }, [initialCharItem.isEquipped]);
+
+  if (!initialCharItem || !initialCharItem.gameItem) return null;
+
+  const { gameItem } = initialCharItem;
+  const itemStyle = isEquipped ? getEquippedCharItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
+
+  const isStatInsufficient = (stat, requiredValue) => {
+    const characterStat = character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`];
+    return characterStat < requiredValue;
+  };
+
+  const rarityColors = {
+    common: 'bg-gray-500',
+    uncommon: 'bg-green-600',
+    rare: 'bg-blue-600',
+    epic: 'bg-purple-600',
+    legendary: 'bg-orange-500'
+  };
+
+  const canEquipItem = () => {
+    if (character.level < gameItem.minLevel) return false;
+    if (gameItem.requiredClass.length && !gameItem.requiredClass.includes(character.class)) return false;
+    for (const [stat, value] of Object.entries(gameItem.requiredStats)) {
+      if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
+    }
+    return true;
+  };
+
+  const handleEquipToggle = async () => {
+    await onEquipItem(initialCharItem._id);
+    setIsEquipped(!isEquipped);
+  };
+
+  const handleDeleteConfirm = async () => {
+    if (isEquipped) {
+      alert('Нельзя удалить экипированный предмет');
+      return;
+    }
+    
+    try {
+      if (gameItem.isStackable && deleteQuantity < initialCharItem.quantity) {
+        await charItem.update(initialCharItem._id, { quantity: initialCharItem.quantity - deleteQuantity });
+        if (typeof onDeleteItem === 'function') {
+          onDeleteItem(initialCharItem._id, deleteQuantity);
+        }
+      } else {
+        await charItem.delete(initialCharItem._id);
+        if (typeof onDeleteItem === 'function') {
+          onDeleteItem(initialCharItem._id, initialCharItem.quantity);
+        }
+      }
+      onClose();
+    } catch (error) {
+      console.error('Ошибка удаления предмета:', error);
+      alert('Не удалось удалить предмет');
+    }
+  };
+
+return (
+    <div className="bg-white rounded-lg shadow-xl overflow-hidden max-w-md w-full">
+      <div className={`relative p-6 ${rarityColors[gameItem.rarity]} text-white`}>
+        <h2 className="text-2xl font-bold mb-2">{gameItem.name}</h2>
+        <p className="text-white opacity-90">{gameItem.type} - {gameItem.rarity.charAt(0).toUpperCase() + gameItem.rarity.slice(1)}</p>
+        <button onClick={onClose} className="absolute top-4 right-4 text-white hover:text-gray-200">
+          <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+      <div className="p-6 bg-gray-50">
+        <div className="flex mb-4">
+          <div className="w-24 h-24 mr-4 rounded-lg shadow overflow-hidden" style={itemStyle}>
+            <img src={gameItem.image || "https://placehold.co/100x100?text=No+Image"} alt={gameItem.name} className="w-full h-full object-cover" />
+          </div>
+          <div>
+            <p className="mb-1">
+              <span className="font-semibold">Мин. уровень:</span> 
+              <span className={character.level < gameItem.minLevel ? "text-red-500 font-bold" : ""}> {gameItem.minLevel}</span>
+            </p>
+            <p className="mb-1">
+              <span className="font-semibold">Класс:</span> 
+              <span className={!gameItem.requiredClass.includes(character.class) ? "text-red-500 font-bold" : ""}> {gameItem.requiredClass.join(', ')}</span>
+            </p>
+            {gameItem.isStackable && (
+              <p className="mb-1">
+                <span className="font-semibold">Количество:</span> {initialCharItem.quantity}
+              </p>
+            )}
+          </div>
+        </div>
+        {Object.keys(gameItem.requiredStats).some(stat => gameItem.requiredStats[stat] > 0) && (
+          <div className="mb-4 p-3 bg-white rounded shadow">
+            <h3 className="font-bold mb-2">Требуемые характеристики:</h3>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.entries(gameItem.requiredStats).map(([stat, value]) => (
+                value > 0 && (
+                  <p key={stat} className={isStatInsufficient(stat, value) ? "text-red-500 font-bold" : ""}>
+                    <strong>{stat}:</strong> {value}
+                  </p>
+                )
+              ))}
+            </div>
+          </div>
+        )}
+        <div className="mb-4 p-3 bg-white rounded shadow">
+          <h3 className="font-bold mb-2">Бонусы:</h3>
+          <div className="grid grid-cols-2 gap-2">
+            {Object.entries(gameItem.stats).map(([stat, value]) => (
+              value !== 0 && <p key={stat}><strong>{stat}:</strong> {value > 0 ? '+' : ''}{value}</p>
+            ))}
+          </div>
+        </div>
+        {gameItem.description && (
+          <p className="text-sm italic text-gray-600 mt-4">{gameItem.description}</p>
+        )}
+        {isEquipped ? (
+          <p className="mt-4 text-green-600 font-bold">Экипировано</p>
+        ) : null}
+        <div className="mt-4 flex justify-between">
           <button
-            onClick={() => setSortOrder(order => order === 'asc' ? 'desc' : 'asc')}
-            className="ml-2 px-2 py-1 bg-blue-500 text-white rounded hover:bg-blue-600"
+            onClick={handleEquipToggle}
+            className={`px-4 py-2 rounded ${
+              canEquipItem() || isEquipped
+                ? 'bg-blue-500 hover:bg-blue-600 text-white'
+                : 'bg-gray-300 text-gray-500 cursor-not-allowed'
+            }`}
+            disabled={!canEquipItem() && !isEquipped}
           >
-            {sortOrder === 'asc' ? '↑' : '↓'}
+            {isEquipped ? 'Снять' : 'Надеть'}
           </button>
+          {!isEquipped && (
+            <button
+              onClick={() => setShowDeleteConfirm(true)}
+              className="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+            >
+              Удалить
+            </button>
+          )}
+        </div>
+        {showDeleteConfirm && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white p-6 rounded-lg">
+              <h3 className="text-lg font-bold mb-4">Подтвердите удаление</h3>
+              {gameItem.isStackable && (
+                <div className="mb-4">
+                  <label className="block mb-2">Количество для удаления:</label>
+                  <input
+                    type="number"
+                    min="1"
+                    max={initialCharItem.quantity}
+                    value={deleteQuantity}
+                    onChange={(e) => setDeleteQuantity(Math.max(1, Math.min(initialCharItem.quantity, parseInt(e.target.value) || 1)))}
+                    className="w-full p-2 border rounded"
+                  />
+                </div>
+              )}
+              <div className="flex justify-end">
+                <button
+                  onClick={() => setShowDeleteConfirm(false)}
+                  className="px-4 py-2 rounded bg-gray-300 hover:bg-gray-400 text-gray-800 mr-2"
+                >
+                  Отмена
+                </button>
+                <button
+                  onClick={handleDeleteConfirm}
+                  className="px-4 py-2 rounded bg-red-500 hover:bg-red-600 text-white"
+                >
+                  Удалить
+                </button>
+              </div>
+            </div>
+          </div>
         )}
       </div>
+    </div>
+  );
+};
+
+export default CharItemInfo;
+
+// Код файла components\Inventory\Inventory.js:
+import React, { useState } from 'react';
+import CharItemInfo from './CharItemInfo';
+import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import FilterSortPanel from '../Interface/FilterSortPanel';
+
+const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
+  const [pressTimer, setPressTimer] = useState(null);
+
+  const handleMouseDown = () => {
+    setPressTimer(setTimeout(() => {
+      if (inventoryItem) {
+        onShowInfo(inventoryItem);
+      }
+    }, 1000));
+  };
+
+  const handleMouseUp = () => {
+    clearTimeout(pressTimer);
+  };
+
+  const handleClick = () => {
+    if (inventoryItem) {
+      if (canEquipItem(inventoryItem)) {
+        onClickInventoryItem(inventoryItem._id);
+      } else {
+        onShowInfo(inventoryItem);
+      }
+    }
+  };
+
+  if (!inventoryItem) return null;
+
+  const itemStyle = inventoryItem.isEquipped
+    ? getEquippedCharItemStyle(inventoryItem.gameItem.rarity)
+    : getCharItemStyle(inventoryItem.gameItem.rarity);
+
+  return (
+    <div
+      className={`aspect-square rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-opacity-80 overflow-hidden relative bg-cover bg-center`}
+      style={{
+        ...itemStyle,
+        backgroundImage: `url(${inventoryItem.gameItem.image || "https://placehold.co/100"})`
+      }}
+      onClick={handleClick}
+      onMouseDown={handleMouseDown}
+      onMouseUp={handleMouseUp}
+      onMouseLeave={handleMouseUp}
+      onTouchStart={handleMouseDown}
+      onTouchEnd={handleMouseUp}
+    >
+      <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+      <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
+        <div className="font-bold truncate w-full">{inventoryItem.gameItem.name}</div>
+        {inventoryItem.gameItem.isStackable && (
+          <div>
+            {inventoryItem.displayQuantity}/{inventoryItem.gameItem.maxQuantity}
+          </div>
+        )}
+        {inventoryItem.stacksCount > 1 && (
+          <div className="text-xs text-gray-300">x{inventoryItem.stacksCount}</div>
+        )}
+      </div>
+    </div>
+  );
+};
+
+const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, character }) => {
+  const [filteredInventory, setFilteredInventory] = useState(inventory);
+  const [selectedItem, setSelectedItem] = useState(null);
+
+  const handleShowInfo = (item) => {
+    setSelectedItem(item);
+  };
+
+  const handleDeleteItem = (deletedItemId, deletedQuantity) => {
+    setFilteredInventory(prevInventory => {
+      const updatedInventory = prevInventory.map(item => {
+        if (item._id === deletedItemId) {
+          const newQuantity = item.quantity - deletedQuantity;
+          if (newQuantity <= 0) {
+            return null;
+          }
+          return { ...item, quantity: newQuantity };
+        }
+        return item;
+      }).filter(Boolean);
+      return updatedInventory;
+    });
+  };
+
+  return (
+    <div>
+      <FilterSortPanel
+        items={inventory}
+        onFilterSort={setFilteredInventory}
+        itemType="inventory"
+      />
       {equipError && (
         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
           <span className="block sm:inline">{equipError}</span>
         </div>
       )}
       <div className="grid grid-cols-4 sm:grid-cols-6 md:grid-cols-6 lg:grid-cols-6 gap-1 bg-gray-200 p-2 rounded-lg">
-        {filteredInventory.map((item, index) => (
-          <InventorySlot
-            key={`${item._id}-${index}`}
-            inventoryItem={item}
-            onClickInventoryItem={onClickInventoryItem}
-            onShowInfo={handleShowInfo}
-            canEquipItem={canEquipItem}
-          />
-        ))}
-        {/* Заполняем пустые слоты, чтобы избежать мерцания */}
-        {Array.from({ length: Math.max(0, 24 - filteredInventory.length) }).map((_, index) => (
+        {filteredInventory.flatMap((item) => {
+          const fullStacks = Math.floor(item.quantity / item.gameItem.maxQuantity);
+          const remainingItems = item.quantity % item.gameItem.maxQuantity;
+
+          return [
+            ...Array(fullStacks).fill().map((_, index) => (
+              <InventorySlot
+                key={`${item._id}-${index}`}
+                inventoryItem={{
+                  ...item,
+                  displayQuantity: item.gameItem.maxQuantity,
+                  isFullStack: true
+                }}
+                onClickInventoryItem={onClickInventoryItem}
+                onShowInfo={() => handleShowInfo(item)}
+                canEquipItem={canEquipItem}
+              />
+            )),
+            remainingItems > 0 && (
+              <InventorySlot
+                key={`${item._id}-${fullStacks}`}
+                inventoryItem={{
+                  ...item,
+                  displayQuantity: remainingItems,
+                  isFullStack: false
+                }}
+                onClickInventoryItem={onClickInventoryItem}
+                onShowInfo={() => handleShowInfo(item)}
+                canEquipItem={canEquipItem}
+              />
+            )
+          ].filter(Boolean);
+        })}
+        {Array.from({ length: Math.max(0, 24 - filteredInventory.reduce((acc, item) => acc + Math.ceil(item.quantity / item.gameItem.maxQuantity), 0)) }).map((_, index) => (
           <div
             key={`empty-${index}`}
             className="aspect-square bg-white border border-gray-300 rounded-md flex flex-col justify-center items-center p-1 text-xs text-center"
@@ -1547,6 +1466,7 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
             onClose={() => setSelectedItem(null)}
             character={character}
             onEquipItem={onClickInventoryItem}
+            onDeleteItem={handleDeleteItem}
           />
         </div>
       )}
@@ -1555,6 +1475,80 @@ const Inventory = ({ inventory, onClickInventoryItem, equipError, canEquipItem, 
 };
 
 export default Inventory;
+
+// Код файла components\Inventory\InventorySlot.js:
+import React, { useState, useCallback, useEffect } from 'react';
+import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+
+
+const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
+    const [pressTimer, setPressTimer] = useState(null);
+
+    const handleMouseDown = useCallback(() => {
+        setPressTimer(setTimeout(() => {
+            if (inventoryItem) {
+                onShowInfo(inventoryItem);
+            }
+        }, 1000));
+    }, [inventoryItem, onShowInfo]);
+
+    const handleMouseUp = () => {
+        clearTimeout(pressTimer);
+    };
+
+    const handleClick = () => {
+        if (inventoryItem) {
+            if (canEquipItem(inventoryItem)) {
+                onClickInventoryItem(inventoryItem._id);
+            } else {
+                onShowInfo(inventoryItem);
+            }
+        }
+    };
+
+    useEffect(() => {
+        return () => {
+            if (pressTimer) clearTimeout(pressTimer);
+        };
+    }, [pressTimer]);
+
+    if (!inventoryItem) return null;
+
+    const itemStyle = inventoryItem.isEquipped
+        ? getEquippedCharItemStyle(inventoryItem.gameItem.rarity)
+        : getCharItemStyle(inventoryItem.gameItem.rarity);
+
+    return (
+        <div
+            className={`aspect-square rounded-md flex flex-col justify-end items-center p-1 text-xs text-center cursor-pointer transition-colors duration-200 hover:bg-opacity-80 overflow-hidden relative bg-cover bg-center`}
+            style={{
+                ...itemStyle,
+                backgroundImage: `url(${inventoryItem.gameItem.image || "https://placehold.co/100"})`
+            }}
+            onClick={handleClick}
+            onMouseDown={handleMouseDown}
+            onMouseUp={handleMouseUp}
+            onMouseLeave={handleMouseUp}
+            onTouchStart={handleMouseDown}
+            onTouchEnd={handleMouseUp}
+        >
+            <div className="absolute inset-0 bg-black bg-opacity-30"></div>
+            <div className="relative z-10 bg-gray-800 bg-opacity-75 text-white px-1 py-0.5 rounded">
+                <div className="font-bold truncate w-full">{inventoryItem.gameItem.name}</div>
+                {inventoryItem.gameItem.isStackable && (
+                    <div>
+                        {inventoryItem.displayQuantity}/{inventoryItem.gameItem.maxQuantity}
+                    </div>
+                )}
+                {inventoryItem.stacksCount > 1 && (
+                    <div className="text-xs text-gray-300">x{inventoryItem.stacksCount}</div>
+                )}
+            </div>
+        </div>
+    );
+};
+
+export default InventorySlot;
 
 // Код файла components\Skills\Skills.js:
 import React, { useState } from 'react';

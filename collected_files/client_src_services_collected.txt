@@ -1,4 +1,5 @@
 // Собранный код для папки client_src_services
+// Внимание! Здесь собраны только нужные в работе файлы. Некоторые файлы связанные с конфигурацией, авторизацией, некоторые компоненты могли не попасть в эту сборку, если не относятся к решению задачи!
 
 // Код файла services\api.js:
 import axios from 'axios';
@@ -35,6 +36,7 @@ export const character = {
   update: (characterData) => api.put('/api/character', characterData),
   equipItem: (charItemId) => api.post('/api/character/equip', { charItemId }),
   addItem: (gameItemId, quantity) => api.post('/api/character/addItem', { gameItemId, quantity }),
+  removeItem: (itemId) => api.delete(`/api/character/removeItem/${itemId}`),
   getHealth: () => api.get('/api/character/health'),
   damage: (damage) => api.post('/api/character/damage', { damage }),
 };

@@ -1,106 +1,5 @@
 // Собранный код для папки server_src_controllers
-
-// Код файла controllers\authController.js:
-const User = require('../models/User');
-const bcrypt = require('bcrypt');
-const jwt = require('jsonwebtoken');
-
-const handleError = (res, status, message) => {
-  console.error(message);
-  res.status(status).json({ message });
-};
-
-const generateToken = (userId) => jwt.sign({ id: userId }, process.env.JWT_SECRET, { expiresIn: '1h' });
-
-const getUserData = (user) => ({
-  id: user._id,
-  username: user.username,
-  email: user.email,
-  role: user.role,
-  hasCharacter: user.hasCharacter
-});
-
-exports.register = async (req, res) => {
-  try {
-    const { username, email, password } = req.body;
-    
-    // Проверяем, существует ли уже пользователь с таким именем или email
-    const existingUser = await User.findOne({ $or: [{ username }, { email }] });
-    if (existingUser) {
-      return handleError(res, 400, 'Пользователь уже существует');
-    }
-    
-    // Хешируем пароль
-    const hashedPassword = await bcrypt.hash(password, 10);
-    
-    // Создаем нового пользователя
-    const newUser = await User.create({
-      username,
-      email,
-      password: hashedPassword,
-      hasCharacter: false
-    });
-    
-    // Генерируем токен
-    const token = generateToken(newUser._id);
-    
-    res.status(201).json({ 
-      message: 'Пользователь успешно зарегистрирован', 
-      token,
-      user: getUserData(newUser)
-    });
-  } catch (error) {
-    handleError(res, 500, 'Ошибка сервера при регистрации');
-  }
-};
-
-exports.login = async (req, res) => {
-  try {
-    const { username, password } = req.body;
-    
-    // Ищем пользователя
-    const user = await User.findOne({ username });
-    if (!user || !(await bcrypt.compare(password, user.password))) {
-      return handleError(res, 400, 'Неверные учетные данные');
-    }
-    
-    // Генерируем токен
-    const token = generateToken(user._id);
-    
-    res.json({ token, user: getUserData(user) });
-  } catch (error) {
-    handleError(res, 400, 'Ошибка входа');
-  }
-};
-
-exports.getCurrentUser = async (req, res) => {
-  try {
-    const user = await User.findById(req.user.id).select('-password');
-    if (!user) {
-      return handleError(res, 404, 'Пользователь не найден');
-    }
-    res.json(getUserData(user));
-  } catch (error) {
-    handleError(res, 500, 'Ошибка при получении данных пользователя');
-  }
-};
-
-exports.makeAdmin = async (req, res) => {
-  try {
-    const user = await User.findByIdAndUpdate(req.user.id, { role: 'admin' }, { new: true });
-    if (!user) {
-      return handleError(res, 404, 'Пользователь не найден');
-    }
-    res.json({
-      message: 'Роль пользователя обновлена до админа',
-      user: getUserData(user)
-    });
-  } catch (error) {
-    handleError(res, 500, 'Ошибка обновления роли пользователя');
-  }
-};
-
-module.exports = exports;
+// Внимание! Здесь собраны только нужные в работе файлы. Некоторые файлы связанные с конфигурацией, авторизацией, некоторые компоненты могли не попасть в эту сборку, если не относятся к решению задачи!
 
 // Код файла controllers\characterController.js:
 const Character = require('../models/Character');
@@ -120,8 +19,7 @@ const getCurrentCharacter = async (userId) => {
     path: 'inventory',
     populate: { path: 'gameItem' }
   });
-  if (!character) throw new Error('Персонаж не найден');
-  return character;
+  return character; // Возвращаем null, если персонаж не найден
 };
 
 const handleError = (res, error, message) => {
@@ -162,9 +60,13 @@ exports.createCharacter = async (req, res) => {
 exports.getCharacter = async (req, res) => {
   try {
     const character = await getCurrentCharacter(req.user._id);
+    if (!character) {
+      return res.status(404).json({ message: 'Character not found', hasCharacter: false });
+    }
     res.json(await getFullCharacterData(character));
   } catch (error) {
-    handleError(res, error, 'Ошибка при получении персонажа');
+    console.error('Ошибка при получении персонажа:', error);
+    res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
 
@@ -193,7 +95,7 @@ exports.updateCharacter = async (req, res) => {
 
 exports.equipCharItem = async (req, res) => {
   try {
-    const { charItemId } = req.body;
+    const { charItemId, quantity = 1 } = req.body;
     const character = await getCurrentCharacter(req.user._id);
 
     const charItemToEquip = character.inventory.find(charItem => charItem._id.toString() === charItemId);
@@ -202,35 +104,65 @@ exports.equipCharItem = async (req, res) => {
     const gameItemType = charItemToEquip.gameItem.type;
 
     if (charItemToEquip.isEquipped) {
-      charItemToEquip.isEquipped = false;
-      charItemToEquip.slot = null;
+      // Снятие предмета
+      if (charItemToEquip.gameItem.isStackable) {
+        charItemToEquip.equippedQuantity = Math.max(0, charItemToEquip.equippedQuantity - quantity);
+        if (charItemToEquip.equippedQuantity === 0) {
+          charItemToEquip.isEquipped = false;
+          charItemToEquip.slot = null;
+        }
+      } else {
+        charItemToEquip.isEquipped = false;
+        charItemToEquip.slot = null;
+      }
     } else {
+      // Надевание предмета
       if (gameItemType === 'useful') {
         const usefulSlots = ['useful1', 'useful2', 'useful3'];
-        const emptySlot = usefulSlots.find(slot => !character.inventory.some(charItem => charItem.isEquipped && charItem.slot === slot));
-        
-        if (emptySlot) {
-          charItemToEquip.slot = emptySlot;
-        } else {
-          const charItemInThirdSlot = character.inventory.find(charItem => charItem.isEquipped && charItem.slot === 'useful3');
-          if (charItemInThirdSlot) {
-            Object.assign(charItemInThirdSlot, { isEquipped: false, slot: null });
-            await charItemInThirdSlot.save();
+        let slotToEquip = null;
+
+        for (const slot of usefulSlots) {
+          const itemInSlot = character.inventory.find(item => item.isEquipped && item.slot === slot);
+          if (!itemInSlot) {
+            slotToEquip = slot;
+            break;
           }
-          charItemToEquip.slot = 'useful3';
         }
+
+        if (!slotToEquip) {
+          // Если все слоты заняты, заменяем предмет в последнем слоте
+          const itemToUnequip = character.inventory.find(item => item.isEquipped && item.slot === 'useful3');
+          if (itemToUnequip) {
+            itemToUnequip.isEquipped = false;
+            itemToUnequip.slot = null;
+            if (itemToUnequip.gameItem.isStackable) {
+              itemToUnequip.equippedQuantity = 0;
+            }
+            await itemToUnequip.save();
+          }
+          slotToEquip = 'useful3';
+        }
+
+        charItemToEquip.slot = slotToEquip;
       } else {
         const equippedCharItem = character.inventory.find(charItem => 
           charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === gameItemType
         );
         if (equippedCharItem) {
-          Object.assign(equippedCharItem, { isEquipped: false, slot: null });
+          equippedCharItem.isEquipped = false;
+          equippedCharItem.slot = null;
+          if (equippedCharItem.gameItem.isStackable) {
+            equippedCharItem.equippedQuantity = 0;
+          }
           await equippedCharItem.save();
         }
         charItemToEquip.slot = gameItemType;
       }
-      
+
       charItemToEquip.isEquipped = true;
+      if (charItemToEquip.gameItem.isStackable) {
+        charItemToEquip.equippedQuantity = Math.min(quantity, charItemToEquip.quantity);
+      }
     }
 
     await charItemToEquip.save();
@@ -242,25 +174,88 @@ exports.equipCharItem = async (req, res) => {
   }
 };
 
+exports.removeItem = async (req, res) => {
+  try {
+    const { itemId } = req.params;
+    const { quantity } = req.body; // Новый параметр для указания количества удаляемых предметов
+    const character = await getCurrentCharacter(req.user._id);
+
+    const charItem = await CharItem.findById(itemId).populate('gameItem');
+    if (!charItem) {
+      throw new Error('Предмет не найден');
+    }
+
+    if (charItem.isEquipped) {
+      throw new Error('Нельзя удалить экипированный предмет');
+    }
+
+    if (charItem.gameItem.isStackable && quantity && quantity < charItem.quantity) {
+      // Уменьшаем количество предметов в стеке
+      charItem.quantity -= quantity;
+      await charItem.save();
+    } else {
+      // Удаляем предмет полностью
+      character.inventory = character.inventory.filter(item => item.toString() !== itemId);
+      await CharItem.findByIdAndDelete(itemId);
+    }
+
+    await character.save();
+
+    res.json(await getFullCharacterData(character));
+  } catch (error) {
+    handleError(res, error, 'Ошибка удаления предмета');
+  }
+};
+
 exports.addItemToInventory = async (req, res) => {
   try {
     const { gameItemId, quantity = 1 } = req.body;
     const character = await getCurrentCharacter(req.user._id);
-
     const gameItem = await GameItem.findById(gameItemId);
+
     if (!gameItem) throw new Error('Игровой предмет не найден');
 
-    let charItem = await CharItem.findOne({ character: character._id, gameItem: gameItemId, isEquipped: false });
-    if (charItem) {
-      charItem.quantity += quantity;
+    if (gameItem.isStackable) {
+      let charItem = await CharItem.findOne({ 
+        character: character._id, 
+        gameItem: gameItemId, 
+        isEquipped: false 
+      });
+
+      if (charItem) {
+        const newQuantity = charItem.quantity + quantity;
+        if (newQuantity <= gameItem.maxQuantity) {
+          charItem.quantity = newQuantity;
+        } else {
+          charItem.quantity = gameItem.maxQuantity;
+          const remainingQuantity = newQuantity - gameItem.maxQuantity;
+          if (remainingQuantity > 0) {
+            await CharItem.create({
+              character: character._id,
+              gameItem: gameItemId,
+              quantity: remainingQuantity
+            });
+          }
+        }
+        await charItem.save();
+      } else {
+        charItem = await CharItem.create({
+          character: character._id,
+          gameItem: gameItemId,
+          quantity: Math.min(quantity, gameItem.maxQuantity)
+        });
+        character.inventory.push(charItem._id);
+      }
     } else {
-      charItem = new CharItem({ character: character._id, gameItem: gameItemId, quantity });
+      const charItem = await CharItem.create({
+        character: character._id,
+        gameItem: gameItemId,
+        quantity: 1
+      });
+      character.inventory.push(charItem._id);
     }
 
-    await charItem.save();
-    character.inventory.push(charItem._id);
     await character.save();
-
     res.json(await getFullCharacterData(character));
   } catch (error) {
     handleError(res, error, 'Ошибка добавления предмета в инвентарь');
@@ -408,9 +403,52 @@ const getGameItem = async (id) => {
   return gameItem;
 };
 
+const processStackableItem = async (gameItem, character, quantity) => {
+  let charItem = await CharItem.findOne({
+    character: character._id,
+    gameItem: gameItem._id,
+  });
+
+  if (charItem) {
+    charItem.quantity += quantity;
+    await charItem.save();
+  } else {
+    charItem = await CharItem.create({
+      gameItem: gameItem._id,
+      character: character._id,
+      quantity,
+      equippedQuantity: 0,
+      isEquipped: false,
+      slot: null
+    });
+    character.inventory.push(charItem._id);
+  }
+};
+
+const processNonStackableItem = async (gameItem, character, quantity) => {
+  const newCharItems = await Promise.all(
+    Array(quantity).fill().map(() => 
+      CharItem.create({
+        gameItem: gameItem._id,
+        character: character._id,
+        quantity: 1,
+        equippedQuantity: 0,
+        isEquipped: false,
+        slot: null
+      })
+    )
+  );
+  character.inventory.push(...newCharItems.map(item => item._id));
+};
+
 exports.createGameItem = async (req, res) => {
   try {
-    const gameItem = await GameItem.create(req.body);
+    const { isStackable, maxQuantity, ...otherFields } = req.body;
+    const gameItem = await GameItem.create({
+      ...otherFields,
+      isStackable: isStackable || false,
+      maxQuantity: isStackable ? (maxQuantity || 1) : 1
+    });
     res.status(201).json(gameItem);
   } catch (error) {
     handleError(res, error, 'Ошибка создания игрового предмета');
@@ -437,7 +475,12 @@ exports.getGameItemById = async (req, res) => {
 
 exports.updateGameItem = async (req, res) => {
   try {
-    const gameItem = await GameItem.findByIdAndUpdate(req.params.id, req.body, { new: true });
+    const { isStackable, maxQuantity, ...otherFields } = req.body;
+    const gameItem = await GameItem.findByIdAndUpdate(req.params.id, {
+      ...otherFields,
+      isStackable: isStackable || false,
+      maxQuantity: isStackable ? (maxQuantity || 1) : 1
+    }, { new: true });
     if (!gameItem) throw new Error('Игровой предмет не найден');
     res.json(gameItem);
   } catch (error) {
@@ -458,25 +501,42 @@ exports.deleteGameItem = async (req, res) => {
 exports.sendGameItem = async (req, res) => {
   try {
     const { gameItemId, characterId } = req.params;
+    const { quantity } = req.body;
+
+    if (!quantity || quantity <= 0) {
+      throw new Error('Неверное количество предметов');
+    }
+
     const [gameItem, character] = await Promise.all([
       getGameItem(gameItemId),
       Character.findById(characterId)
     ]);
     
     if (!character) throw new Error('Персонаж не найден');
-    
-    const charItem = await CharItem.create({
-      gameItem: gameItem._id,
-      character: character._id,
-      quantity: 1,
-      isEquipped: false,
-      slot: null
-    });
-    
-    character.inventory.push(charItem._id);
+
+    if (gameItem.isStackable) {
+      await processStackableItem(gameItem, character, quantity);
+    } else {
+      await processNonStackableItem(gameItem, character, quantity);
+    }
+
     await character.save();
+
+    const updatedInventory = await CharItem.find({ character: characterId }).populate('gameItem');
     
-    res.json({ message: 'Игровой предмет успешно отправлен персонажу', character });
+    res.json({ 
+      message: 'Игровой предмет успешно отправлен персонажу', 
+      character: {
+        ...character.toObject(),
+        inventory: updatedInventory.map(item => ({
+          ...item.toObject(),
+          displayQuantity: item.quantity,
+          equippedQuantity: item.equippedQuantity,
+          availableQuantity: item.quantity - item.equippedQuantity,
+          stacksCount: Math.ceil(item.quantity / (item.gameItem.isStackable ? item.gameItem.maxQuantity : 1))
+        }))
+      }
+    });
   } catch (error) {
     handleError(res, error, 'Ошибка отправки игрового предмета');
   }

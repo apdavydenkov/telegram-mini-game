@@ -1,23 +1,10 @@
 // Собранный код для папки server_src_routes
-
-// Код файла routes\authRoutes.js:
-const express = require('express');
-const router = express.Router();
-const { register, login, getCurrentUser, makeAdmin } = require('../controllers/authController');
-const authMiddleware = require('../middlewares/authMiddleware');
-
-router.post('/register', register);
-router.post('/login', login);
-router.post('/make-admin', authMiddleware, makeAdmin);
-router.get('/current-user', authMiddleware, getCurrentUser);
-
-
-module.exports = router;
+// Внимание! Здесь собраны только нужные в работе файлы. Некоторые файлы связанные с конфигурацией, авторизацией, некоторые компоненты могли не попасть в эту сборку, если не относятся к решению задачи!
 
 // Код файла routes\characterRoutes.js:
 const express = require('express');
 const router = express.Router();
-const { createCharacter, getCharacter, updateCharacter, equipCharItem, addItemToInventory, getHealthData, damageCharacter } = require('../controllers/characterController');
+const { createCharacter, getCharacter, updateCharacter, equipCharItem, removeItem, addItemToInventory, getHealthData, damageCharacter } = require('../controllers/characterController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
 router.post('/', authMiddleware, createCharacter);
@@ -27,6 +14,7 @@ router.post('/equip', authMiddleware, equipCharItem);
 router.post('/addItem', authMiddleware, addItemToInventory);
 router.get('/health', authMiddleware, getHealthData);
 router.post('/damage', authMiddleware, damageCharacter);
+router.delete('/removeItem/:itemId', authMiddleware, removeItem);
 
 module.exports = router;
 
@@ -62,10 +50,6 @@ router.delete('/:id', authMiddleware, adminMiddleware, deleteGameItem);
 router.post('/send/:gameItemId/:characterId', authMiddleware, adminMiddleware, sendGameItem);
 
 module.exports = router;
-
-// Код файла routes\inventoryRoutes.js:
- 
-
 
 // Код файла routes\skillRoutes.js:
  

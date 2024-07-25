@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { APP_SERVER_URL } from '../../config/config';
@@ -6,13 +6,23 @@ import { APP_SERVER_URL } from '../../config/config';
 const InputField = ({ label, name, value, onChange, type = 'text' }) => (
   <div className="flex justify-between items-center mb-2">
     <label className="text-right pr-2 w-1/2">{label}:</label>
-    <input
-      type={type}
-      name={name}
-      value={value}
-      onChange={onChange}
-      className="w-1/2 h-[25px] px-2 border rounded text-right"
-    />
+    {type === 'checkbox' ? (
+      <input
+        type="checkbox"
+        name={name}
+        checked={value}
+        onChange={onChange}
+        className="w-5 h-5"
+      />
+    ) : (
+      <input
+        type={type}
+        name={name}
+        value={value}
+        onChange={onChange}
+        className="w-1/2 h-[25px] px-2 border rounded text-right"
+      />
+    )}
   </div>
 );
 
@@ -86,17 +96,13 @@ const AdminGameItemForm = () => {
       healthRegenRate: 0,
       health: 0,
       counterAttack: 0
-    }
+    },
+    isStackable: false,
+    maxQuantity: 1,
   });
   const [error, setError] = useState('');
 
-  useEffect(() => {
-    if (id) {
-      fetchGameItem();
-    }
-  }, [id]);
-
-  const fetchGameItem = async () => {
+  const fetchGameItem = useCallback(async () => {
     try {
       const token = localStorage.getItem('token');
       if (!token) {
@@ -118,11 +124,20 @@ const AdminGameItemForm = () => {
         navigate('/login');
       }
     }
-  };
+  }, [id, navigate]);
+
+  useEffect(() => {
+    if (id) {
+      fetchGameItem();
+    }
+  }, [id, fetchGameItem]);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setGameItem(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setGameItem(prev => ({
+      ...prev,
+      [name]: type === 'checkbox' ? checked : value
+    }));
   };
 
   const handleStatsChange = (e) => {
@@ -206,7 +221,22 @@ const AdminGameItemForm = () => {
               options={['common', 'uncommon', 'rare', 'epic', 'legendary']}
             />
             <InputField label="Изображение" name="image" value={gameItem.image} onChange={handleChange} />
-
+            <InputField
+              label="Складируемый"
+              name="isStackable"
+              value={gameItem.isStackable}
+              onChange={handleChange}
+              type="checkbox"
+            />
+            {gameItem.isStackable && (
+              <InputField
+                label="Макс. количество"
+                name="maxQuantity"
+                value={gameItem.maxQuantity}
+                onChange={handleChange}
+                type="number"
+              />
+            )}
             <textarea
               name="description"
               value={gameItem.description}
