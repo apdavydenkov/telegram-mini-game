@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
-import axios from 'axios';
 import { useNavigate, Link } from 'react-router-dom';
-import { APP_SERVER_URL } from '../../config/config';
+import { authAPI } from '../../services/api';
 
 const Register = () => {
   const [username, setUsername] = useState('');
@@ -15,7 +14,7 @@ const Register = () => {
     setError('');
     try {
       console.log('Attempting to register user:', username);
-      const response = await axios.post(`${APP_SERVER_URL}/api/auth/register`, { username, email, password });
+      const response = await authAPI.register(username, email, password);
       console.log('Registration response:', response.data);
       
       if (response.data.token) {

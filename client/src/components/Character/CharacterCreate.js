@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
-import axios from 'axios';
-import { APP_SERVER_URL } from '../../config/config';
+import { characterAPI } from '../../services/api';
 
 const CharacterCreate = ({ onCharacterCreated }) => {
   const [nickname, setNickname] = useState('');
@@ -30,11 +29,7 @@ const CharacterCreate = ({ onCharacterCreated }) => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     try {
-      const token = localStorage.getItem('token');
-      const response = await axios.post(`${APP_SERVER_URL}/api/character`,
-        { nickname, class: characterClass, ...stats },
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
+      const response = await characterAPI.create({ nickname, class: characterClass, ...stats });
       onCharacterCreated(response.data);
     } catch (error) {
       console.error('Error creating character:', error);

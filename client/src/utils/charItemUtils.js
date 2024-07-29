@@ -1,5 +1,3 @@
-// client/src/utils/charItemUtils.js
-
 const getRarityColor = (rarity) => {
     switch (rarity) {
       case 'legendary':
@@ -25,7 +23,7 @@ const getRarityColor = (rarity) => {
     };
   };
   
-  export const getEquippedCharItemStyle = (rarity) => {
+  export const getEquippedItemStyle = (rarity) => {
     const baseStyle = getCharItemStyle(rarity);
     return {
       ...baseStyle,

@@ -1,20 +1,19 @@
 import React, { useState, useEffect } from 'react';
-import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
-import { charItem } from '../../services/api';
+import { getCharItemStyle, getEquippedItemStyle } from '../../utils/charItemUtils';
 
-const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipItem, onDeleteItem }) => {
-  const [isEquipped, setIsEquipped] = useState(initialCharItem.isEquipped);
+const CharItemInfo = ({ charItem: selectedItem, onClose, onDeleteItem, onEquipItem, canEquipItem, character }) => {
+  const [isEquipped, setIsEquipped] = useState(selectedItem.isEquipped);
   const [deleteQuantity, setDeleteQuantity] = useState(1);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   useEffect(() => {
-    setIsEquipped(initialCharItem.isEquipped);
-  }, [initialCharItem.isEquipped]);
+    setIsEquipped(selectedItem.isEquipped);
+  }, [selectedItem.isEquipped]);
 
-  if (!initialCharItem || !initialCharItem.gameItem) return null;
+  if (!selectedItem || !selectedItem.gameItem) return null;
 
-  const { gameItem } = initialCharItem;
-  const itemStyle = isEquipped ? getEquippedCharItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
+  const { gameItem } = selectedItem;
+  const itemStyle = isEquipped ? getEquippedItemStyle(gameItem.rarity) : getCharItemStyle(gameItem.rarity);
 
   const isStatInsufficient = (stat, requiredValue) => {
     const characterStat = character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`];
@@ -29,18 +28,13 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
     legendary: 'bg-orange-500'
   };
 
-  const canEquipItem = () => {
-    if (character.level < gameItem.minLevel) return false;
-    if (gameItem.requiredClass.length && !gameItem.requiredClass.includes(character.class)) return false;
-    for (const [stat, value] of Object.entries(gameItem.requiredStats)) {
-      if (character[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
+  const handleEquipItem = async () => {
+    try {
+      await onEquipItem(selectedItem._id);
+      setIsEquipped(!isEquipped);
+    } catch (error) {
+      alert('Ошибка экипировки предмета');
     }
-    return true;
-  };
-
-  const handleEquipToggle = async () => {
-    await onEquipItem(initialCharItem._id);
-    setIsEquipped(!isEquipped);
   };
 
   const handleDeleteConfirm = async () => {
@@ -48,22 +42,11 @@ const CharItemInfo = ({ charItem: initialCharItem, onClose, character, onEquipIt
       alert('Нельзя удалить экипированный предмет');
       return;
     }
-    
+
     try {
-      if (gameItem.isStackable && deleteQuantity < initialCharItem.quantity) {
-        await charItem.update(initialCharItem._id, { quantity: initialCharItem.quantity - deleteQuantity });
-        if (typeof onDeleteItem === 'function') {
-          onDeleteItem(initialCharItem._id, deleteQuantity);
-        }
-      } else {
-        await charItem.delete(initialCharItem._id);
-        if (typeof onDeleteItem === 'function') {
-          onDeleteItem(initialCharItem._id, initialCharItem.quantity);
-        }
-      }
+      await onDeleteItem(selectedItem._id, deleteQuantity);
       onClose();
     } catch (error) {
-      console.error('Ошибка удаления предмета:', error);
       alert('Не удалось удалить предмет');
     }
   };
@@ -95,7 +78,7 @@ return (
             </p>
             {gameItem.isStackable && (
               <p className="mb-1">
-                <span className="font-semibold">Количество:</span> {initialCharItem.quantity}
+                <span className="font-semibold">Количество:</span> {selectedItem.quantity}
               </p>
             )}
           </div>
@@ -130,13 +113,13 @@ return (
         ) : null}
         <div className="mt-4 flex justify-between">
           <button
-            onClick={handleEquipToggle}
+            onClick={handleEquipItem}
             className={`px-4 py-2 rounded ${
-              canEquipItem() || isEquipped
+              canEquipItem(selectedItem) || isEquipped
                 ? 'bg-blue-500 hover:bg-blue-600 text-white'
                 : 'bg-gray-300 text-gray-500 cursor-not-allowed'
             }`}
-            disabled={!canEquipItem() && !isEquipped}
+            disabled={!canEquipItem(selectedItem) && !isEquipped}
           >
             {isEquipped ? 'Снять' : 'Надеть'}
           </button>
@@ -159,9 +142,9 @@ return (
                   <input
                     type="number"
                     min="1"
-                    max={initialCharItem.quantity}
+                    max={selectedItem.quantity}
                     value={deleteQuantity}
-                    onChange={(e) => setDeleteQuantity(Math.max(1, Math.min(initialCharItem.quantity, parseInt(e.target.value) || 1)))}
+                    onChange={(e) => setDeleteQuantity(Math.max(1, Math.min(selectedItem.quantity, parseInt(e.target.value) || 1)))}
                     className="w-full p-2 border rounded"
                   />
                 </div>

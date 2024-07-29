@@ -1,22 +1,15 @@
-import React, { useState } from 'react';
-import CharItemInfo from '../Inventory/CharItemInfo';
+import React from 'react';
 import CharacterStatus from './CharacterStatus';
 import EquipmentSlot from './EquipmentSlot';
 import HealthBar from './HealthBar';
 import CharacterSilhouette from './CharacterSilhouette';
 
-const Character = ({ character, onUnequipItem, onDeleteItem }) => {
-  const [selectedItem, setSelectedItem] = useState(null);
-
+const Character = ({ character, onEquipItem, onShowItemInfo }) => {
   if (!character) {
     return <div>Загрузка персонажа...</div>;
   }
 
-  const handleShowInfo = (charItem) => {
-    setSelectedItem(charItem);
-  };
-
-  const getEquippedCharItem = (slot) => {
+  const getEquippedItem = (slot) => {
     return character.inventory && character.inventory.find(charItem => charItem.isEquipped && charItem.slot === slot);
   };
 
@@ -73,9 +66,9 @@ const Character = ({ character, onUnequipItem, onDeleteItem }) => {
           <div key={slot} className={`col-span-3 row-span-3 col-start-${col} row-start-${row} bg-white rounded-md flex items-center justify-center overflow-hidden`}>
             <EquipmentSlot
               slot={slot}
-              item={getEquippedCharItem(slot)}
-              onUnequip={onUnequipItem}
-              onShowInfo={handleShowInfo}
+              item={getEquippedItem(slot)}
+              onUnequip={onEquipItem}
+              onShowInfo={onShowItemInfo}
             />
           </div>
         ))}
@@ -84,9 +77,9 @@ const Character = ({ character, onUnequipItem, onDeleteItem }) => {
           <div key={slot} className={`col-span-2 row-span-2 col-start-${4 + index * 2} row-start-15 bg-white rounded-md flex items-center justify-center overflow-hidden`}>
             <EquipmentSlot
               slot={slot}
-              item={getEquippedCharItem(slot)}
-              onUnequip={onUnequipItem}
-              onShowInfo={handleShowInfo}
+              item={getEquippedItem(slot)}
+              onUnequip={onEquipItem}
+              onShowInfo={onShowItemInfo}
             />
           </div>
         ))}
@@ -101,17 +94,6 @@ const Character = ({ character, onUnequipItem, onDeleteItem }) => {
           <span className="font-bold text-yellow-800">Gold: {character.gold}</span>
         </div>
       </div>
-      {selectedItem && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <CharItemInfo
-            charItem={selectedItem}
-            onClose={() => setSelectedItem(null)}
-            character={character}
-            onEquipItem={onUnequipItem}
-            onDeleteItem={onDeleteItem}
-          />
-        </div>
-      )}
     </div>
   );
 };

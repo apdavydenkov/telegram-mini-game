@@ -1,18 +1,19 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { character } from '../services/api';
+import { characterAPI, charItemAPI } from '../services/api';
 
 const useCharacter = () => {
   const [characterData, setCharacterData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [isUpdating, setIsUpdating] = useState(false);
+  const [isSessionExpired, setIsSessionExpired] = useState(false);
   const healthUpdateInterval = useRef(null);
 
   const fetchCharacter = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
-      const { data } = await character.get();
+      const { data } = await characterAPI.get();
       if (data) {
         setCharacterData(data);
       } else {
@@ -20,7 +21,11 @@ const useCharacter = () => {
       }
     } catch (err) {
       console.error('Error fetching character:', err);
-      setError('Failed to load character data');
+      if (err.response && err.response.status === 401) {
+        setIsSessionExpired(true);
+      } else {
+        setError('Failed to load character data');
+      }
       setCharacterData(null);
     } finally {
       setLoading(false);
@@ -58,7 +63,7 @@ const useCharacter = () => {
     setError(null);
 
     try {
-      const { data } = await character.update(updatedData);
+      const { data } = await characterAPI.update(updatedData);
       setCharacterData(data);
     } catch (err) {
       console.error('Error updating character:', err);
@@ -68,43 +73,58 @@ const useCharacter = () => {
     }
   }, [isUpdating]);
 
-  const equipItem = useCallback(async (charItemId) => {
+  const deleteItem = async (charItemId, deleteQuantity) => {
     try {
-      setError(null);
-      const { data } = await character.equipItem(charItemId);
-      setCharacterData(data);
-      return { success: true };
-    } catch (err) {
-      console.error('Error equipping item:', err);
-      setError('Failed to equip item');
-      return { success: false, message: 'Failed to equip item' };
-    }
-  }, []);
+      const charItem = characterData.inventory.find(item => item._id === charItemId);
+      if (!charItem) throw new Error('Предмет не найден');
 
-  const removeItem = useCallback(async (itemId, quantity) => {
-    try {
-      console.log('Удаление предмета:', itemId, 'Количество:', quantity);
-      const { data } = await character.removeItem(itemId, quantity);
-      console.log('Ответ сервера после удаления:', data);
-      setCharacterData(prevData => {
-        const updatedInventory = prevData.inventory.map(item => {
-          if (item._id === itemId) {
-            const newQuantity = item.quantity - quantity;
-            if (newQuantity <= 0) {
-              return null;
-            }
-            return { ...item, quantity: newQuantity };
-          }
-          return item;
-        }).filter(Boolean);
-        console.log('Обновленный инвентарь в хуке:', updatedInventory);
-        return { ...prevData, inventory: updatedInventory };
-      });
+      if (charItem.isEquipped) {
+        throw new Error('Нельзя удалить экипированный предмет');
+      }
+
+      if (charItem.gameItem.isStackable && deleteQuantity < charItem.quantity) {
+        await charItemAPI.update(charItemId, { quantity: charItem.quantity - deleteQuantity });
+        setCharacterData(prevData => ({
+          ...prevData,
+          inventory: prevData.inventory.map(item =>
+            item._id === charItemId
+              ? { ...item, quantity: item.quantity - deleteQuantity }
+              : item
+          )
+        }));
+      } else {
+        await charItemAPI.delete(charItemId);
+        setCharacterData(prevData => ({
+          ...prevData,
+          inventory: prevData.inventory.filter(item => item._id !== charItemId)
+        }));
+      }
     } catch (error) {
       console.error('Ошибка удаления предмета:', error);
       throw error;
     }
-  }, []);
+  };
+
+  const equipItem = async (charItemId) => {
+    try {
+      const { data } = await characterAPI.equipItem(charItemId);
+      setCharacterData(data);
+      return { success: true };
+    } catch (error) {
+      console.error('Ошибка экипировки предмета:', error);
+      throw error;
+    }
+  };
+
+  const canEquipItem = useCallback((charItem) => {
+    if (!characterData || !charItem || !charItem.gameItem) return false;
+    if (characterData.level < charItem.gameItem.minLevel) return false;
+    if (charItem.gameItem.requiredClass.length && !charItem.gameItem.requiredClass.includes(characterData.class)) return false;
+    for (const [stat, value] of Object.entries(charItem.gameItem.requiredStats)) {
+      if (characterData[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] < value) return false;
+    }
+    return true;
+  }, [characterData]);
 
   useEffect(() => {
     fetchCharacter();
@@ -126,9 +146,11 @@ const useCharacter = () => {
     loading,
     error,
     isUpdating,
+    isSessionExpired,
     updateCharacter,
+    deleteItem,
     equipItem,
-    removeItem,
+    canEquipItem,
     fetchCharacter
   };
 };

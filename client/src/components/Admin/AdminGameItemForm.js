@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { APP_SERVER_URL } from '../../config/config';
+import { gameItemAPI } from '../../services/api';
 
 const InputField = ({ label, name, value, onChange, type = 'text' }) => (
   <div className="flex justify-between items-center mb-2">
@@ -67,6 +66,7 @@ const CheckboxField = ({ label, name, value, onChange, options }) => (
 const AdminGameItemForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [error, setError] = useState('');
   const [gameItem, setGameItem] = useState({
     name: '',
     type: 'weapon',
@@ -100,37 +100,24 @@ const AdminGameItemForm = () => {
     isStackable: false,
     maxQuantity: 1,
   });
-  const [error, setError] = useState('');
 
   const fetchGameItem = useCallback(async () => {
+    if (!id) return;
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('Токен отсутствует. Перенаправление на страницу входа.');
-        navigate('/login');
-        return;
-      }
-      const response = await axios.get(`${APP_SERVER_URL}/api/gameItem/${id}`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await gameItemAPI.get(id);
       setGameItem(response.data);
     } catch (error) {
-      console.error('Ошибка получения игрового предмета:', error.response?.data || error.message);
+      console.error('Ошибка получения игрового предмета:', error);
       setError('Ошибка загрузки данных игрового предмета. Пожалуйста, попробуйте еще раз.');
-
       if (error.response && error.response.status === 401) {
-        console.log('Токен недействителен. Перенаправление на страницу входа.');
-        localStorage.removeItem('token');
         navigate('/login');
       }
     }
   }, [id, navigate]);
 
   useEffect(() => {
-    if (id) {
-      fetchGameItem();
-    }
-  }, [id, fetchGameItem]);
+    fetchGameItem();
+  }, [fetchGameItem]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -170,29 +157,16 @@ const AdminGameItemForm = () => {
     e.preventDefault();
     setError('');
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('Токен отсутствует. Перенаправление на страницу входа.');
-        navigate('/login');
-        return;
-      }
       if (id) {
-        await axios.put(`${APP_SERVER_URL}/api/gameItem/${id}`, gameItem, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await gameItemAPI.update(id, gameItem);
       } else {
-        await axios.post(`${APP_SERVER_URL}/api/gameItem`, gameItem, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await gameItemAPI.create(gameItem);
       }
       navigate('/admin/gameItem');
     } catch (error) {
-      console.error('Ошибка сохранения игрового предмета:', error.response?.data || error.message);
+      console.error('Ошибка сохранения игрового предмета:', error);
       setError('Ошибка сохранения игрового предмета. Пожалуйста, проверьте данные и попробуйте еще раз.');
-
       if (error.response && error.response.status === 401) {
-        console.log('Токен недействителен. Перенаправление на страницу входа.');
-        localStorage.removeItem('token');
         navigate('/login');
       }
     }

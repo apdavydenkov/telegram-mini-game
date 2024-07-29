@@ -1,59 +1,58 @@
 import { useState, useEffect, useCallback } from 'react';
-import { auth } from '../services/api';
 import { useNavigate } from 'react-router-dom';
+import { authAPI } from '../services/api';
 
 const useAuth = () => {
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const navigate = useNavigate();
 
-  const loadUser = useCallback(async () => {
+  const checkAuth = useCallback(async () => {
     try {
-      const { data } = await auth.getCurrentUser();
-      setUser(data);
-    } catch (error) {
-      console.error('Error loading user:', error);
+      setLoading(true);
+      const response = await authAPI.getCurrentUser();
+      setUser(response.data);
+      setError(null);
+    } catch (err) {
+      console.error('Error checking auth:', err);
       setUser(null);
+      setError('Authentication failed');
+      if (err.response && err.response.status === 401) {
+        navigate('/login');
+      }
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [navigate]);
 
   useEffect(() => {
-    loadUser();
-  }, [loadUser]);
+    checkAuth();
+  }, [checkAuth]);
 
   const login = async (username, password) => {
     try {
-      const { data } = await auth.login(username, password);
-      localStorage.setItem('token', data.token);
-      setUser(data.user);
+      setLoading(true);
+      const response = await authAPI.login(username, password);
+      setUser(response.data.user);
+      localStorage.setItem('token', response.data.token);
+      setError(null);
       navigate('/dashboard');
-    } catch (error) {
-      console.error('Login error:', error);
-      throw error;
+    } catch (err) {
+      console.error('Login error:', err);
+      setError('Login failed');
+    } finally {
+      setLoading(false);
     }
   };
 
-  const register = async (username, email, password) => {
-    try {
-      const { data } = await auth.register(username, email, password);
-      localStorage.setItem('token', data.token);
-      setUser(data.user);
-      navigate('/dashboard');
-    } catch (error) {
-      console.error('Registration error:', error);
-      throw error;
-    }
-  };
-
-  const logout = () => {
+  const logout = useCallback(() => {
     localStorage.removeItem('token');
     setUser(null);
     navigate('/login');
-  };
+  }, [navigate]);
 
-  return { user, loading, login, register, logout };
+  return { user, loading, error, login, logout, checkAuth };
 };
 
 export default useAuth;

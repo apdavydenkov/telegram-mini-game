@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import { getEquippedItemStyle } from '../../utils/charItemUtils';
 
 const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
   const [pressTimer, setPressTimer] = useState(null);
@@ -31,7 +31,7 @@ const EquipmentSlot = ({ slot, item, onUnequip, onShowInfo }) => {
   return (
     <div
       className="w-full h-full flex items-center justify-center cursor-pointer"
-      style={item ? getEquippedCharItemStyle(item.gameItem.rarity) : {}}
+      style={item ? getEquippedItemStyle(item.gameItem.rarity) : {}}
       onClick={handleClick}
       onMouseDown={handleMouseDown}
       onMouseUp={handleMouseUp}

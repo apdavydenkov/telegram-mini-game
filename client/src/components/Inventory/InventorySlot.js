@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { getCharItemStyle, getEquippedCharItemStyle } from '../../utils/charItemUtils';
+import { getCharItemStyle, getEquippedItemStyle } from '../../utils/charItemUtils';
 
 
 const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEquipItem }) => {
@@ -36,7 +36,7 @@ const InventorySlot = ({ inventoryItem, onClickInventoryItem, onShowInfo, canEqu
     if (!inventoryItem) return null;
 
     const itemStyle = inventoryItem.isEquipped
-        ? getEquippedCharItemStyle(inventoryItem.gameItem.rarity)
+        ? getEquippedItemStyle(inventoryItem.gameItem.rarity)
         : getCharItemStyle(inventoryItem.gameItem.rarity);
 
     return (

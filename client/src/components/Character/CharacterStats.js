@@ -1,17 +1,21 @@
-import React from 'react';
+import React, { useState, useCallback } from 'react';
 import { FaDumbbell, FaRunning, FaBrain, FaHeart, FaSmile, FaFistRaised, FaShieldAlt, FaBullseye, FaWind, FaHeartbeat, FaStar, FaBolt, FaBalanceScale } from 'react-icons/fa';
 
-const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => {
-  const calculateTotalStat = (baseStat, statName) => {
+const CharacterStats = ({ character, onCharacterUpdate }) => {
+  const [disabledStats, setDisabledStats] = useState({});
+
+  const calculateTotalStat = useCallback((baseStat, statName) => {
     if (!character || !character.inventory) return baseStat;
 
     const equippedItems = character.inventory.filter(item => item.isEquipped);
     const bonusStat = equippedItems.reduce((sum, item) => sum + (item.gameItem?.stats?.[statName] || 0), 0);
     return baseStat + bonusStat;
-  };
+  }, [character]);
 
   const handleStatIncrease = async (stat) => {
-    if (character.zeroPoints || isUpdating) return;
+    if (character.availablePoints <= 0 || character.zeroPoints || disabledStats[stat]) return;
+
+    setDisabledStats(prev => ({ ...prev, [stat]: true }));
 
     const updatedCharacter = {
       ...character,
@@ -20,7 +24,20 @@ const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => 
       version: character.version
     };
 
-    await onCharacterUpdate(updatedCharacter);
+    try {
+      await onCharacterUpdate(updatedCharacter);
+    } catch (error) {
+      console.error('Ошибка при обновлении характеристики:', error);
+      // Возвращаем очко характеристики обратно в случае ошибки
+      updatedCharacter.availablePoints += 1;
+      updatedCharacter[`base${stat.charAt(0).toUpperCase() + stat.slice(1)}`] -= 1;
+      onCharacterUpdate(updatedCharacter);
+    } finally {
+      // Разблокируем кнопку через 500 мс
+      setTimeout(() => {
+        setDisabledStats(prev => ({ ...prev, [stat]: false }));
+      }, 500);
+    }
   };
 
   const StatParam = ({ icon: Icon, label, value, maxValue, stat, isAdjustable = true }) => {
@@ -54,8 +71,8 @@ const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => 
           {isAdjustable && !character.zeroPoints && character.availablePoints > 0 && (
             <button
               onClick={() => handleStatIncrease(stat)}
-              className={`w-6 h-6 ${isUpdating ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'} text-white rounded transition-colors duration-200`}
-              disabled={isUpdating}
+              className={`w-6 h-6 ${disabledStats[stat] ? 'bg-gray-400 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600'} text-white rounded transition-colors duration-200`}
+              disabled={disabledStats[stat]}
             >
               +
             </button>
@@ -73,7 +90,6 @@ const CharacterStats = ({ character, onCharacterUpdate, isUpdating, error }) => 
 
   return (
     <div className="relative grid grid-cols-1 md:grid-cols-2 gap-4">
-      {error && <div className="col-span-2 text-red-500 mb-4">{error}</div>}
       <div>
         <h3 className="text-lg font-bold mb-3 text-gray-800">Базовые параметры</h3>
         <StatParam icon={FaDumbbell} label="Сила" value={calculateTotalStat(character.baseStrength, 'strength')} stat="strength" />

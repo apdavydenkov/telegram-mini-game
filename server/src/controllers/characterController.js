@@ -270,14 +270,39 @@ exports.getHealthData = async (req, res) => {
 exports.damageCharacter = async (req, res) => {
   try {
     const { damage } = req.body;
+    console.log(`Получен запрос на нанесение урона: ${damage} (тип: ${typeof damage})`);
+
+    if (typeof damage !== 'number' || isNaN(damage) || damage < 0) {
+      console.log('Неверное значение урона');
+      return res.status(400).json({ message: `Урон: ${damage} (тип: ${typeof damage})` });
+    }
+
     const character = await getCurrentCharacter(req.user._id);
+    if (!character) {
+      console.log('Персонаж не найден');
+      return res.status(404).json({ message: 'Персонаж не найден' });
+    }
 
-    character.updateHealth(Math.max(0, character.getCurrentHealth() - damage));
+    const currentHealth = character.getCurrentHealth();
+    console.log(`Текущее здоровье: ${currentHealth} (тип: ${typeof currentHealth})`);
+
+    const newHealth = Math.max(0, currentHealth - damage);
+    console.log(`Новое здоровье после урона: ${newHealth} (тип: ${typeof newHealth})`);
+
+    character.updateHealth(newHealth);
+    console.log('Здоровье обновлено');
+
+    console.log('Персонаж перед сохранением:', JSON.stringify(character.toObject(), null, 2));
     await character.save();
+    console.log('Персонаж сохранен');
 
-    res.json(character.getHealthData());
+    const updatedHealthData = character.getHealthData();
+    console.log('Обновленные данные о здоровье:', JSON.stringify(updatedHealthData, null, 2));
+
+    res.json(updatedHealthData);
   } catch (error) {
-    handleError(res, error, 'Ошибка при нанесении урона персонажу');
+    console.error('Ошибка при нанесении урона персонажу:', error);
+    res.status(400).json({ message: 'Ошибка при нанесении урона персонажу', error: error.message });
   }
 };
 

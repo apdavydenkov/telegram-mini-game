@@ -110,8 +110,7 @@ exports.deleteGameItem = async (req, res) => {
 
 exports.sendGameItem = async (req, res) => {
   try {
-    const { gameItemId, characterId } = req.params;
-    const { quantity } = req.body;
+    const { gameItemId, characterId, quantity } = req.body;
 
     if (!quantity || quantity <= 0) {
       throw new Error('Неверное количество предметов');

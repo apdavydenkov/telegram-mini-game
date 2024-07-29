@@ -9,6 +9,6 @@ router.get('/:id', authMiddleware, getGameItemById);
 router.post('/', authMiddleware, adminMiddleware, createGameItem);
 router.put('/:id', authMiddleware, adminMiddleware, updateGameItem);
 router.delete('/:id', authMiddleware, adminMiddleware, deleteGameItem);
-router.post('/send/:gameItemId/:characterId', authMiddleware, adminMiddleware, sendGameItem);
+router.post('/send', authMiddleware, adminMiddleware, sendGameItem);
 
 module.exports = router;

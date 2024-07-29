@@ -1,8 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import axios from 'axios';
-import { APP_SERVER_URL } from '../../config/config';
 import FilterSortPanel from '../Interface/FilterSortPanel';
+import { gameItemAPI } from '../../services/api';
 
 const AdminGameItemList = () => {
   const navigate = useNavigate();
@@ -11,19 +10,14 @@ const AdminGameItemList = () => {
 
   const fetchGameItems = useCallback(async () => {
     try {
-      const token = localStorage.getItem('token');
-      if (!token) {
-        console.log('Токен отсутствует. Перенаправление на страницу входа.');
-        navigate('/login');
-        return;
-      }
-      const response = await axios.get(`${APP_SERVER_URL}/api/gameItem/`, {
-        headers: { Authorization: `Bearer ${token}` }
-      });
+      const response = await gameItemAPI.getAll();
       setGameItems(response.data);
       setFilteredGameItems(response.data);
     } catch (error) {
       console.error('Error fetching game items:', error.response?.data || error.message);
+      if (error.response && error.response.status === 401) {
+        navigate('/login');
+      }
     }
   }, [navigate]);
 
@@ -35,10 +29,7 @@ const AdminGameItemList = () => {
   const handleDelete = async (gameItemId) => {
     if (window.confirm('Are you sure you want to delete this game item?')) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.delete(`${APP_SERVER_URL}/api/gameItem/${gameItemId}`, {
-          headers: { Authorization: `Bearer ${token}` }
-        });
+        await gameItemAPI.delete(gameItemId);
         fetchGameItems();
       } catch (error) {
         console.error('Error deleting game item:', error);
@@ -51,11 +42,7 @@ const AdminGameItemList = () => {
     const quantity = prompt("Enter the quantity to send:");
     if (characterId && quantity) {
       try {
-        const token = localStorage.getItem('token');
-        await axios.post(`${APP_SERVER_URL}/api/gameItem/send/${gameItemId}/${characterId}`,
-          { quantity: parseInt(quantity, 10) },
-          { headers: { Authorization: `Bearer ${token}` } }
-        );
+        await gameItemAPI.send(gameItemId, characterId, parseInt(quantity, 10));
         alert('Game item sent successfully');
       } catch (error) {
         console.error('Error sending game item:', error.response?.data || error.message);
