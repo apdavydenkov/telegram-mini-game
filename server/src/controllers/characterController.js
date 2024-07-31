@@ -26,7 +26,7 @@ const handleError = (res, error, message) => {
 exports.createCharacter = async (req, res) => {
   try {
     const { nickname, class: characterClass, baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma } = req.body;
-    
+
     const totalStats = baseStrength + baseDexterity + baseIntelligence + baseEndurance + baseCharisma;
     const baseStats = 50;
     const basePoints = 5;
@@ -53,15 +53,28 @@ exports.createCharacter = async (req, res) => {
   }
 };
 
+// controllers/characterController.js
+
 exports.getCharacter = async (req, res) => {
   try {
     const character = await getCurrentCharacter(req.user._id);
     if (!character) {
       return res.status(404).json({ message: 'Character not found', hasCharacter: false });
     }
+
+    // Обновляем health, maxHealth и lastHealthUpdate перед отправкой данных
+    const currentHealth = character.getCurrentHealth();
+    const maxHealth = character.getMaxHealth();
+    character.health = currentHealth;
+    character.maxHealth = maxHealth;
+    character.lastHealthUpdate = new Date();
+    await character.save();
+
+    console.log('Server: Character health updated:', { health: currentHealth, maxHealth, lastHealthUpdate: character.lastHealthUpdate });
+
     res.json(await getFullCharacterData(character));
   } catch (error) {
-    console.error('Ошибка при получении персонажа:', error);
+    console.error('Server: Error getting character:', error);
     res.status(500).json({ message: 'Internal server error', error: error.message });
   }
 };
@@ -82,7 +95,7 @@ exports.updateCharacter = async (req, res) => {
 
     Object.assign(character, { baseStrength, baseDexterity, baseIntelligence, baseEndurance, baseCharisma, availablePoints: character.availablePoints - pointsSpent });
     await character.save();
-    
+
     res.json(await getFullCharacterData(character));
   } catch (error) {
     handleError(res, error, 'Ошибка обновления персонажа');
@@ -141,7 +154,7 @@ exports.equipCharItem = async (req, res) => {
 
         charItemToEquip.slot = slotToEquip;
       } else {
-        const equippedCharItem = character.inventory.find(charItem => 
+        const equippedCharItem = character.inventory.find(charItem =>
           charItem.isEquipped && charItem.gameItem && charItem.gameItem.type === gameItemType
         );
         if (equippedCharItem) {
@@ -212,10 +225,10 @@ exports.addItemToInventory = async (req, res) => {
     if (!gameItem) throw new Error('Игровой предмет не найден');
 
     if (gameItem.isStackable) {
-      let charItem = await CharItem.findOne({ 
-        character: character._id, 
-        gameItem: gameItemId, 
-        isEquipped: false 
+      let charItem = await CharItem.findOne({
+        character: character._id,
+        gameItem: gameItemId,
+        isEquipped: false
       });
 
       if (charItem) {
